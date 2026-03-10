@@ -129,6 +129,44 @@ defmodule Tidal.Session do
     end
   end
 
+  @doc """
+  Sends a JSON-RPC message to the session and returns the response.
+
+  The session currently echoes the message back wrapped in a response.
+  Actual method dispatch will be added in later tasks.
+  """
+  @spec handle_message(session_id(), struct()) :: {:ok, struct()} | {:error, :not_found}
+  def handle_message(session_id, message) do
+    case get(session_id) do
+      {:ok, pid} -> {:ok, GenServer.call(pid, {:handle_message, message})}
+      {:error, :not_found} -> {:error, :not_found}
+    end
+  end
+
+  @doc """
+  Registers a process to receive server-initiated SSE messages for a session.
+
+  The caller process will receive `{:sse_message, message}` tuples.
+  """
+  @spec subscribe(session_id(), pid()) :: :ok | {:error, :not_found}
+  def subscribe(session_id, subscriber_pid \\ self()) do
+    case get(session_id) do
+      {:ok, pid} -> GenServer.call(pid, {:subscribe, subscriber_pid})
+      {:error, :not_found} -> {:error, :not_found}
+    end
+  end
+
+  @doc """
+  Sends a server-initiated notification to all SSE subscribers for a session.
+  """
+  @spec notify(session_id(), struct()) :: :ok | {:error, :not_found}
+  def notify(session_id, message) do
+    case get(session_id) do
+      {:ok, pid} -> GenServer.cast(pid, {:notify, message})
+      {:error, :not_found} -> {:error, :not_found}
+    end
+  end
+
   @doc false
   def start_link(init_arg) do
     session_id = init_arg.session_id
@@ -147,7 +185,8 @@ defmodule Tidal.Session do
       capabilities: init_arg.capabilities,
       server_info: init_arg.server_info,
       assigns: %{},
-      timeout_ms: init_arg.timeout_ms
+      timeout_ms: init_arg.timeout_ms,
+      subscribers: MapSet.new()
     }
 
     Logger.debug("Session started: #{init_arg.session_id}")
@@ -164,8 +203,41 @@ defmodule Tidal.Session do
     {:reply, :ok, state, state.timeout_ms}
   end
 
+  def handle_call({:handle_message, %Tidal.JSONRPC.Request{} = request}, _from, state) do
+    # Stub: echo the method back as the result. Real dispatch comes in later tasks.
+    response = %Tidal.JSONRPC.Response{
+      id: request.id,
+      result: %{"method" => request.method, "status" => "received"}
+    }
+
+    {:reply, response, state, state.timeout_ms}
+  end
+
+  def handle_call({:handle_message, %Tidal.JSONRPC.Notification{}}, _from, state) do
+    # Notifications don't get responses
+    {:reply, :no_response, state, state.timeout_ms}
+  end
+
+  def handle_call({:handle_message, _message}, _from, state) do
+    {:reply, :no_response, state, state.timeout_ms}
+  end
+
+  def handle_call({:subscribe, subscriber_pid}, _from, state) do
+    Process.monitor(subscriber_pid)
+    state = update_in(state, [:subscribers], &MapSet.put(&1, subscriber_pid))
+    {:reply, :ok, state, state.timeout_ms}
+  end
+
   @impl true
   def handle_cast(:touch, state) do
+    {:noreply, state, state.timeout_ms}
+  end
+
+  def handle_cast({:notify, message}, state) do
+    for pid <- state.subscribers do
+      send(pid, {:sse_message, message})
+    end
+
     {:noreply, state, state.timeout_ms}
   end
 
@@ -173,6 +245,11 @@ defmodule Tidal.Session do
   def handle_info(:timeout, state) do
     Logger.info("Session timed out: #{state.session_id}")
     {:stop, :normal, state}
+  end
+
+  def handle_info({:DOWN, _ref, :process, pid, _reason}, state) do
+    state = update_in(state, [:subscribers], &MapSet.delete(&1, pid))
+    {:noreply, state, state.timeout_ms}
   end
 
   # ── Helpers ─────────────────────────────────────────────────────────
