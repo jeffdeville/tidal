@@ -38,6 +38,18 @@ defmodule Tidal.Plug do
   plug(:match)
   plug(:dispatch)
 
+  @doc false
+  def init(opts) do
+    opts
+  end
+
+  @doc false
+  def call(conn, opts) do
+    conn
+    |> put_private(:tidal_session_opts, opts)
+    |> super(opts)
+  end
+
   # ── POST — Client sends JSON-RPC messages ────────────────────────────
 
   post "/" do
@@ -111,7 +123,9 @@ defmodule Tidal.Plug do
   end
 
   defp create_and_initialize(conn, request) do
-    case Session.start() do
+    session_opts = Map.get(conn.private, :tidal_session_opts, [])
+
+    case Session.start(session_opts) do
       {:ok, session_id} ->
         {:ok, response} = Session.handle_message(session_id, request)
 

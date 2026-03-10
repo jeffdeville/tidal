@@ -18,6 +18,11 @@ defmodule Tidal.Session.Options do
       type: :map,
       default: %{},
       doc: "Server information map passed to the session."
+    ],
+    resource_handlers: [
+      type: {:list, :atom},
+      default: [],
+      doc: "List of modules implementing the Tidal.Resource behaviour."
     ]
   ]
 

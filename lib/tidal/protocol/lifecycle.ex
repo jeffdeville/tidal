@@ -22,9 +22,11 @@ defmodule Tidal.Protocol.Lifecycle do
       client_info = params["clientInfo"] || %{}
       client_capabilities = params["capabilities"] || %{}
 
+      capabilities = build_capabilities(state)
+
       result = %{
         "protocolVersion" => Protocol.supported_protocol_version(),
-        "capabilities" => state.capabilities,
+        "capabilities" => capabilities,
         "serverInfo" => state.server_info
       }
 
@@ -82,6 +84,19 @@ defmodule Tidal.Protocol.Lifecycle do
   end
 
   # ── Helpers ─────────────────────────────────────────────────────────
+
+  defp build_capabilities(state) do
+    base = state.capabilities
+
+    resource_handlers = Map.get(state, :resource_handlers, [])
+
+    if resource_handlers != [] do
+      resource_cap = %{"subscribe" => true}
+      Map.put(base, "resources", resource_cap)
+    else
+      base
+    end
+  end
 
   defp compatible_protocol_version?(nil), do: false
 
