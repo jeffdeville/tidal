@@ -88,24 +88,13 @@ defmodule Tidal.Plug do
   # ── POST handling ────────────────────────────────────────────────────
 
   defp handle_post(conn, %JSONRPC.Request{method: "initialize"} = request) do
-    # Initialize creates a new session
-    case Session.start() do
+    case get_session_id(conn) do
       {:ok, session_id} ->
-        {:ok, response} = Session.handle_message(session_id, request)
+        # Session already exists — route to it (will be rejected by protocol state machine)
+        dispatch_to_session(conn, session_id, request)
 
-        conn
-        |> put_resp_header("mcp-session-id", session_id)
-        |> send_json_response(200, response)
-
-      {:error, reason} ->
-        error = %JSONRPC.Error{
-          id: request.id,
-          code: ErrorCodes.internal_error(),
-          message: "Internal error",
-          data: inspect(reason)
-        }
-
-        send_json_response(conn, 500, error)
+      :no_session ->
+        create_and_initialize(conn, request)
     end
   end
 
@@ -118,6 +107,20 @@ defmodule Tidal.Plug do
         send_json_response(conn, 400, %{
           "error" => "Mcp-Session-Id header required for non-initialize requests"
         })
+    end
+  end
+
+  defp create_and_initialize(conn, request) do
+    case Session.start() do
+      {:ok, session_id} ->
+        {:ok, response} = Session.handle_message(session_id, request)
+
+        conn
+        |> put_resp_header("mcp-session-id", session_id)
+        |> send_json_response(200, response)
+
+      {:error, reason} ->
+        send_json_response(conn, 500, internal_error(request.id, inspect(reason)))
     end
   end
 
@@ -299,5 +302,14 @@ defmodule Tidal.Plug do
     conn
     |> put_resp_content_type("application/json")
     |> send_resp(status, json)
+  end
+
+  defp internal_error(id, detail) do
+    %JSONRPC.Error{
+      id: id,
+      code: ErrorCodes.internal_error(),
+      message: "Internal error",
+      data: detail
+    }
   end
 end

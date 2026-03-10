@@ -25,8 +25,14 @@ defmodule Tidal.PlugTest do
   # ── POST endpoint tests ─────────────────────────────────────────────
 
   describe "POST / (initialize)" do
-    test "creates a new session and returns JSON response", %{port: port} do
-      body = jsonrpc_request("initialize", %{}, 1)
+    test "creates a new session and returns InitializeResult", %{port: port} do
+      body =
+        jsonrpc_request(
+          "initialize",
+          %{"protocolVersion" => "2024-11-05", "capabilities" => %{}},
+          1
+        )
+
       {status, headers, resp_body} = post(port, body)
 
       assert status == 200
@@ -37,11 +43,19 @@ defmodule Tidal.PlugTest do
       decoded = Jason.decode!(resp_body)
       assert decoded["jsonrpc"] == "2.0"
       assert decoded["id"] == 1
-      assert decoded["result"]["method"] == "initialize"
+      assert decoded["result"]["protocolVersion"] == "2024-11-05"
+      assert is_map(decoded["result"]["capabilities"])
+      assert is_map(decoded["result"]["serverInfo"])
     end
 
     test "returns unique session IDs for each initialize", %{port: port} do
-      body = jsonrpc_request("initialize", %{}, 1)
+      body =
+        jsonrpc_request(
+          "initialize",
+          %{"protocolVersion" => "2024-11-05", "capabilities" => %{}},
+          1
+        )
+
       {200, headers1, _} = post(port, body)
       {200, headers2, _} = post(port, body)
 
@@ -52,10 +66,10 @@ defmodule Tidal.PlugTest do
   end
 
   describe "POST / (established session)" do
-    test "routes messages to the correct session", %{port: port} do
-      session_id = create_session(port)
+    test "routes ping request to session and gets empty result", %{port: port} do
+      session_id = create_initialized_session(port)
 
-      body = jsonrpc_request("tools/list", %{}, 2)
+      body = jsonrpc_request("ping", %{}, 2)
       {status, headers, resp_body} = post(port, body, session_id)
 
       assert status == 200
@@ -63,7 +77,7 @@ defmodule Tidal.PlugTest do
 
       decoded = Jason.decode!(resp_body)
       assert decoded["id"] == 2
-      assert decoded["result"]["method"] == "tools/list"
+      assert decoded["result"] == %{}
     end
 
     test "returns 400 for non-initialize POST without session ID", %{port: port} do
@@ -82,21 +96,21 @@ defmodule Tidal.PlugTest do
     end
 
     test "accepts notifications (no response body)", %{port: port} do
-      session_id = create_session(port)
+      session_id = create_initialized_session(port)
 
-      body = jsonrpc_notification("notifications/initialized", %{})
+      body = jsonrpc_notification("notifications/cancelled", %{})
       {status, _headers, _resp_body} = post(port, body, session_id)
 
       assert status == 202
     end
 
     test "handles batch requests", %{port: port} do
-      session_id = create_session(port)
+      session_id = create_initialized_session(port)
 
       batch =
         Jason.encode!([
-          %{"jsonrpc" => "2.0", "method" => "tools/list", "id" => 1, "params" => %{}},
-          %{"jsonrpc" => "2.0", "method" => "resources/list", "id" => 2, "params" => %{}}
+          %{"jsonrpc" => "2.0", "method" => "ping", "id" => 1, "params" => %{}},
+          %{"jsonrpc" => "2.0", "method" => "ping", "id" => 2, "params" => %{}}
         ])
 
       {status, _headers, resp_body} = post(port, batch, session_id)
@@ -124,7 +138,13 @@ defmodule Tidal.PlugTest do
     test "returns 400 for missing Content-Type", %{port: port} do
       url = ~c"http://127.0.0.1:#{port}/"
       headers = [{~c"accept", ~c"application/json, text/event-stream"}]
-      body = jsonrpc_request("initialize", %{}, 1)
+
+      body =
+        jsonrpc_request(
+          "initialize",
+          %{"protocolVersion" => "2024-11-05", "capabilities" => %{}},
+          1
+        )
 
       {:ok, {{_, status, _}, _headers, _body}} =
         :httpc.request(:post, {url, headers, ~c"text/plain", body}, [], [])
@@ -134,7 +154,13 @@ defmodule Tidal.PlugTest do
 
     test "returns 406 for missing Accept header", %{port: port} do
       url = ~c"http://127.0.0.1:#{port}/"
-      body = jsonrpc_request("initialize", %{}, 1)
+
+      body =
+        jsonrpc_request(
+          "initialize",
+          %{"protocolVersion" => "2024-11-05", "capabilities" => %{}},
+          1
+        )
 
       {:ok, {{_, status, _}, _headers, _body}} =
         :httpc.request(
@@ -152,7 +178,7 @@ defmodule Tidal.PlugTest do
 
   describe "GET / (SSE stream)" do
     test "opens SSE stream with correct headers", %{port: port} do
-      session_id = create_session(port)
+      session_id = create_initialized_session(port)
 
       # Use raw TCP to test SSE since :httpc doesn't support streaming
       {:ok, socket} = :gen_tcp.connect(~c"127.0.0.1", port, [:binary, active: false])
@@ -177,7 +203,7 @@ defmodule Tidal.PlugTest do
     end
 
     test "delivers server-initiated notifications via SSE", %{port: port} do
-      session_id = create_session(port)
+      session_id = create_initialized_session(port)
 
       {:ok, socket} = :gen_tcp.connect(~c"127.0.0.1", port, [:binary, active: false])
 
@@ -240,7 +266,7 @@ defmodule Tidal.PlugTest do
 
   describe "DELETE / (session termination)" do
     test "terminates session and returns 204", %{port: port} do
-      session_id = create_session(port)
+      session_id = create_initialized_session(port)
 
       # Verify session exists
       body = jsonrpc_request("ping", %{}, 1)
@@ -277,7 +303,13 @@ defmodule Tidal.PlugTest do
     test "accepts wildcard Accept header", %{port: port} do
       url = ~c"http://127.0.0.1:#{port}/"
       headers = [{~c"accept", ~c"*/*"}]
-      body = jsonrpc_request("initialize", %{}, 1)
+
+      body =
+        jsonrpc_request(
+          "initialize",
+          %{"protocolVersion" => "2024-11-05", "capabilities" => %{}},
+          1
+        )
 
       {:ok, {{_, status, _}, _headers, _body}} =
         :httpc.request(:post, {url, headers, ~c"application/json", body}, [], [])
@@ -288,7 +320,13 @@ defmodule Tidal.PlugTest do
     test "rejects Accept with only application/json", %{port: port} do
       url = ~c"http://127.0.0.1:#{port}/"
       headers = [{~c"accept", ~c"application/json"}]
-      body = jsonrpc_request("initialize", %{}, 1)
+
+      body =
+        jsonrpc_request(
+          "initialize",
+          %{"protocolVersion" => "2024-11-05", "capabilities" => %{}},
+          1
+        )
 
       {:ok, {{_, status, _}, _headers, _body}} =
         :httpc.request(:post, {url, headers, ~c"application/json", body}, [], [])
@@ -299,7 +337,13 @@ defmodule Tidal.PlugTest do
     test "rejects Accept with only text/event-stream", %{port: port} do
       url = ~c"http://127.0.0.1:#{port}/"
       headers = [{~c"accept", ~c"text/event-stream"}]
-      body = jsonrpc_request("initialize", %{}, 1)
+
+      body =
+        jsonrpc_request(
+          "initialize",
+          %{"protocolVersion" => "2024-11-05", "capabilities" => %{}},
+          1
+        )
 
       {:ok, {{_, status, _}, _headers, _body}} =
         :httpc.request(:post, {url, headers, ~c"application/json", body}, [], [])
@@ -323,10 +367,23 @@ defmodule Tidal.PlugTest do
 
   # ── Helpers ──────────────────────────────────────────────────────────
 
-  defp create_session(port) do
-    body = jsonrpc_request("initialize", %{}, 1)
+  defp create_initialized_session(port) do
+    # Step 1: Initialize
+    body =
+      jsonrpc_request(
+        "initialize",
+        %{"protocolVersion" => "2024-11-05", "capabilities" => %{}},
+        1
+      )
+
     {200, headers, _resp_body} = post(port, body)
-    header_value(headers, ~c"mcp-session-id")
+    session_id = header_value(headers, ~c"mcp-session-id")
+
+    # Step 2: Send initialized notification
+    initialized = jsonrpc_notification("notifications/initialized", %{})
+    {202, _headers, _resp_body} = post(port, initialized, session_id)
+
+    session_id
   end
 
   defp post(port, body, session_id \\ nil) do
