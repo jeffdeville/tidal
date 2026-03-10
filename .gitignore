@@ -1,0 +1,17 @@
+# Dependencies
+/deps/
+/_build/
+/node_modules/
+
+# Generated
+*.beam
+*.ez
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp
