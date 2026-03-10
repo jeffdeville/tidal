@@ -34,7 +34,10 @@ defmodule Tidal.Session do
           client_capabilities: map(),
           assigns: map(),
           timeout_ms: pos_integer(),
-          subscribers: MapSet.t()
+          subscribers: MapSet.t(),
+          tool_modules: [module()],
+          resource_handlers: [module()],
+          resource_subscriptions: MapSet.t()
         }
 
   # ── Client API ──────────────────────────────────────────────────────
@@ -70,7 +73,8 @@ defmodule Tidal.Session do
         timeout_ms: validated[:timeout],
         capabilities: capabilities,
         server_info: validated[:server_info],
-        tool_modules: tool_modules
+        tool_modules: tool_modules,
+        resource_handlers: validated[:resource_handlers]
       }
 
       case DynamicSupervisor.start_child(
@@ -212,7 +216,9 @@ defmodule Tidal.Session do
       assigns: %{},
       timeout_ms: init_arg.timeout_ms,
       subscribers: MapSet.new(),
-      tool_modules: Map.get(init_arg, :tool_modules, [])
+      tool_modules: Map.get(init_arg, :tool_modules, []),
+      resource_handlers: Map.get(init_arg, :resource_handlers, []),
+      resource_subscriptions: MapSet.new()
     }
 
     Logger.debug("Session started: #{init_arg.session_id}")
@@ -282,6 +288,16 @@ defmodule Tidal.Session do
   def handle_info(:timeout, state) do
     Logger.info("Session timed out: #{state.session_id}")
     {:stop, :normal, state}
+  end
+
+  def handle_info({:resource_updated, uri, notification}, state) do
+    if MapSet.member?(state.resource_subscriptions, uri) do
+      for pid <- state.subscribers do
+        send(pid, {:sse_message, notification})
+      end
+    end
+
+    {:noreply, state, state.timeout_ms}
   end
 
   def handle_info({:DOWN, _ref, :process, pid, _reason}, state) do

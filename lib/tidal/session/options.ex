@@ -23,6 +23,11 @@ defmodule Tidal.Session.Options do
       type: {:list, :atom},
       default: [],
       doc: "List of modules implementing the Tidal.Tool behaviour."
+    ],
+    resource_handlers: [
+      type: {:list, :atom},
+      default: [],
+      doc: "List of modules implementing the Tidal.Resource behaviour."
     ]
   ]
 
