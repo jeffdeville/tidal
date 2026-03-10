@@ -1,11 +1,15 @@
 # Dependencies
 /deps/
 /_build/
-/node_modules/
 
 # Generated
 *.beam
 *.ez
+/cover/
+/doc/
+
+# ExCoveralls
+/excoveralls.html
 
 # OS
 .DS_Store
@@ -15,3 +19,10 @@ Thumbs.db
 .idea/
 .vscode/
 *.swp
+
+# Mix artifacts
+erl_crash.dump
+tidal-*.tar
+
+# Temp
+/tmp/
