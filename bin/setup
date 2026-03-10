@@ -1,0 +1,40 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+HOOKS_DIR="$REPO_ROOT/.git/hooks"
+
+# Handle git worktree: .git may be a file pointing to the actual git dir
+if [ -f "$REPO_ROOT/.git" ]; then
+  HOOKS_DIR="$(cat "$REPO_ROOT/.git" | sed 's/gitdir: //')/hooks"
+fi
+
+echo "==> Installing git hooks..."
+
+mkdir -p "$HOOKS_DIR"
+
+# Pre-commit hook: format check
+cat > "$HOOKS_DIR/pre-commit" << 'HOOK'
+#!/usr/bin/env bash
+set -euo pipefail
+echo "Running mix format --check-formatted..."
+mix format --check-formatted
+HOOK
+chmod +x "$HOOKS_DIR/pre-commit"
+
+# Pre-push hook: run tests
+cat > "$HOOKS_DIR/pre-push" << 'HOOK'
+#!/usr/bin/env bash
+set -euo pipefail
+echo "Running mix test..."
+mix test
+HOOK
+chmod +x "$HOOKS_DIR/pre-push"
+
+echo "==> Installing dependencies..."
+mix deps.get
+
+echo "==> Compiling..."
+mix compile
+
+echo "==> Setup complete!"
