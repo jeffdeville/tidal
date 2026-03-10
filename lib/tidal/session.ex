@@ -6,12 +6,19 @@ defmodule Tidal.Session do
   supervised under `Tidal.SessionSupervisor`. Sessions are identified
   by a cryptographically random, URL-safe ID.
 
-  The session GenServer is designed to receive protocol messages and
-  dispatch them — actual message handling logic is added in later tasks.
+  The session tracks its lifecycle state through:
+
+    * `:created` — initial state, only `initialize` is accepted
+    * `:initializing` — after initialize response, awaiting `notifications/initialized`
+    * `:ready` — fully initialized, all methods accepted
+    * `:shutting_down` — shutdown requested, session will terminate
+
+  Protocol message dispatch is handled by `Tidal.Protocol`.
   """
 
   use GenServer, restart: :temporary
 
+  alias Tidal.Protocol
   alias Tidal.Session.Options
 
   require Logger
@@ -20,10 +27,14 @@ defmodule Tidal.Session do
 
   @type state :: %{
           session_id: session_id(),
+          lifecycle: :created | :initializing | :ready | :shutting_down,
           capabilities: map(),
           server_info: map(),
+          client_info: map(),
+          client_capabilities: map(),
           assigns: map(),
-          timeout_ms: pos_integer()
+          timeout_ms: pos_integer(),
+          subscribers: MapSet.t()
         }
 
   # ── Client API ──────────────────────────────────────────────────────
@@ -36,7 +47,7 @@ defmodule Tidal.Session do
   ## Options
 
     * `:timeout` — inactivity timeout in milliseconds (default: 30 minutes)
-    * `:capabilities` — initial capabilities map (default: `%{}`)
+    * `:capabilities` — server capabilities map (default: `%{}`)
     * `:server_info` — server information map (default: `%{}`)
 
   """
@@ -132,13 +143,14 @@ defmodule Tidal.Session do
   @doc """
   Sends a JSON-RPC message to the session and returns the response.
 
-  The session currently echoes the message back wrapped in a response.
-  Actual method dispatch will be added in later tasks.
+  Dispatches through `Tidal.Protocol` which enforces lifecycle state
+  and routes to the appropriate handler.
   """
-  @spec handle_message(session_id(), struct()) :: {:ok, struct()} | {:error, :not_found}
+  @spec handle_message(session_id(), struct()) ::
+          {:ok, struct()} | {:ok, :no_response} | {:error, :not_found | :shutting_down}
   def handle_message(session_id, message) do
     case get(session_id) do
-      {:ok, pid} -> {:ok, GenServer.call(pid, {:handle_message, message})}
+      {:ok, pid} -> GenServer.call(pid, {:handle_message, message})
       {:error, :not_found} -> {:error, :not_found}
     end
   end
@@ -182,8 +194,11 @@ defmodule Tidal.Session do
   def init(init_arg) do
     state = %{
       session_id: init_arg.session_id,
+      lifecycle: :created,
       capabilities: init_arg.capabilities,
       server_info: init_arg.server_info,
+      client_info: %{},
+      client_capabilities: %{},
       assigns: %{},
       timeout_ms: init_arg.timeout_ms,
       subscribers: MapSet.new()
@@ -204,22 +219,28 @@ defmodule Tidal.Session do
   end
 
   def handle_call({:handle_message, %Tidal.JSONRPC.Request{} = request}, _from, state) do
-    # Stub: echo the method back as the result. Real dispatch comes in later tasks.
-    response = %Tidal.JSONRPC.Response{
-      id: request.id,
-      result: %{"method" => request.method, "status" => "received"}
-    }
+    {response, new_state} = Protocol.handle_request(request, state)
 
-    {:reply, response, state, state.timeout_ms}
+    if new_state.lifecycle == :shutting_down do
+      {:reply, {:ok, response}, new_state, 0}
+    else
+      {:reply, {:ok, response}, new_state, new_state.timeout_ms}
+    end
   end
 
-  def handle_call({:handle_message, %Tidal.JSONRPC.Notification{}}, _from, state) do
-    # Notifications don't get responses
-    {:reply, :no_response, state, state.timeout_ms}
+  def handle_call({:handle_message, %Tidal.JSONRPC.Notification{} = notification}, _from, state) do
+    case Protocol.handle_notification(notification, state) do
+      {:ok, new_state} ->
+        {:reply, {:ok, :no_response}, new_state, new_state.timeout_ms}
+
+      {:error, _reason, new_state} ->
+        # Notifications don't get error responses per JSON-RPC spec
+        {:reply, {:ok, :no_response}, new_state, new_state.timeout_ms}
+    end
   end
 
   def handle_call({:handle_message, _message}, _from, state) do
-    {:reply, :no_response, state, state.timeout_ms}
+    {:reply, {:ok, :no_response}, state, state.timeout_ms}
   end
 
   def handle_call({:subscribe, subscriber_pid}, _from, state) do
@@ -242,6 +263,11 @@ defmodule Tidal.Session do
   end
 
   @impl true
+  def handle_info(:timeout, %{lifecycle: :shutting_down} = state) do
+    Logger.info("Session shutting down: #{state.session_id}")
+    {:stop, :normal, state}
+  end
+
   def handle_info(:timeout, state) do
     Logger.info("Session timed out: #{state.session_id}")
     {:stop, :normal, state}
