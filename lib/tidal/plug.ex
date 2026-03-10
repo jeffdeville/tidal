@@ -38,6 +38,21 @@ defmodule Tidal.Plug do
   plug(:match)
   plug(:dispatch)
 
+  @doc """
+  Initializes the plug with session options.
+
+  Options are passed through to `Tidal.Session.start/1` when creating new sessions.
+  Accepts all options supported by `Tidal.Session.Options`.
+  """
+  @impl true
+  def init(opts), do: opts
+
+  @impl true
+  def call(conn, opts) do
+    conn = Plug.Conn.put_private(conn, :tidal_session_opts, opts)
+    super(conn, opts)
+  end
+
   # ── POST — Client sends JSON-RPC messages ────────────────────────────
 
   post "/" do
@@ -111,7 +126,9 @@ defmodule Tidal.Plug do
   end
 
   defp create_and_initialize(conn, request) do
-    case Session.start() do
+    session_opts = Map.get(conn.private, :tidal_session_opts, [])
+
+    case Session.start(session_opts) do
       {:ok, session_id} ->
         {:ok, response} = Session.handle_message(session_id, request)
 

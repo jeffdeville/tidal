@@ -56,11 +56,21 @@ defmodule Tidal.Session do
     with {:ok, validated} <- Options.validate(opts) do
       session_id = generate_session_id()
 
+      tool_modules = validated[:tool_modules]
+
+      capabilities =
+        if tool_modules != [] do
+          Map.put(validated[:capabilities], "tools", %{})
+        else
+          validated[:capabilities]
+        end
+
       init_arg = %{
         session_id: session_id,
         timeout_ms: validated[:timeout],
-        capabilities: validated[:capabilities],
-        server_info: validated[:server_info]
+        capabilities: capabilities,
+        server_info: validated[:server_info],
+        tool_modules: tool_modules
       }
 
       case DynamicSupervisor.start_child(
@@ -201,7 +211,8 @@ defmodule Tidal.Session do
       client_capabilities: %{},
       assigns: %{},
       timeout_ms: init_arg.timeout_ms,
-      subscribers: MapSet.new()
+      subscribers: MapSet.new(),
+      tool_modules: Map.get(init_arg, :tool_modules, [])
     }
 
     Logger.debug("Session started: #{init_arg.session_id}")
