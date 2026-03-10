@@ -19,6 +19,11 @@ defmodule Tidal.Session.Options do
       default: %{},
       doc: "Server information map passed to the session."
     ],
+    tool_modules: [
+      type: {:list, :atom},
+      default: [],
+      doc: "List of modules implementing the Tidal.Tool behaviour."
+    ],
     resource_handlers: [
       type: {:list, :atom},
       default: [],

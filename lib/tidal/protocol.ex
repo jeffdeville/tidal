@@ -7,7 +7,7 @@ defmodule Tidal.Protocol do
   """
 
   alias Tidal.JSONRPC
-  alias Tidal.Protocol.{Lifecycle, Resources}
+  alias Tidal.Protocol.{Lifecycle, Resources, Tools}
 
   require Tidal.JSONRPC.ErrorCodes, as: ErrorCodes
 
@@ -97,6 +97,14 @@ defmodule Tidal.Protocol do
 
   defp dispatch_request(%JSONRPC.Request{method: "shutdown"} = request, state) do
     Lifecycle.handle_shutdown(request, state)
+  end
+
+  defp dispatch_request(%JSONRPC.Request{method: "tools/list"} = request, state) do
+    Tools.handle_list(request, state)
+  end
+
+  defp dispatch_request(%JSONRPC.Request{method: "tools/call"} = request, state) do
+    Tools.handle_call(request, state)
   end
 
   defp dispatch_request(%JSONRPC.Request{method: "resources/list"} = request, state) do

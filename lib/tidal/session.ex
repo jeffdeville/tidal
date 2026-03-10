@@ -35,6 +35,7 @@ defmodule Tidal.Session do
           assigns: map(),
           timeout_ms: pos_integer(),
           subscribers: MapSet.t(),
+          tool_modules: [module()],
           resource_handlers: [module()],
           resource_subscriptions: MapSet.t()
         }
@@ -58,11 +59,21 @@ defmodule Tidal.Session do
     with {:ok, validated} <- Options.validate(opts) do
       session_id = generate_session_id()
 
+      tool_modules = validated[:tool_modules]
+
+      capabilities =
+        if tool_modules != [] do
+          Map.put(validated[:capabilities], "tools", %{})
+        else
+          validated[:capabilities]
+        end
+
       init_arg = %{
         session_id: session_id,
         timeout_ms: validated[:timeout],
-        capabilities: validated[:capabilities],
+        capabilities: capabilities,
         server_info: validated[:server_info],
+        tool_modules: tool_modules,
         resource_handlers: validated[:resource_handlers]
       }
 
@@ -205,6 +216,7 @@ defmodule Tidal.Session do
       assigns: %{},
       timeout_ms: init_arg.timeout_ms,
       subscribers: MapSet.new(),
+      tool_modules: Map.get(init_arg, :tool_modules, []),
       resource_handlers: Map.get(init_arg, :resource_handlers, []),
       resource_subscriptions: MapSet.new()
     }
