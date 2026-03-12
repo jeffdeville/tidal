@@ -164,8 +164,15 @@ defmodule Tidal.Session do
           {:ok, struct()} | {:ok, :no_response} | {:error, :not_found | :shutting_down}
   def handle_message(session_id, message) do
     case get(session_id) do
-      {:ok, pid} -> GenServer.call(pid, {:handle_message, message})
-      {:error, :not_found} -> {:error, :not_found}
+      {:ok, pid} ->
+        try do
+          GenServer.call(pid, {:handle_message, message})
+        catch
+          :exit, _ -> {:error, :not_found}
+        end
+
+      {:error, :not_found} ->
+        {:error, :not_found}
     end
   end
 
