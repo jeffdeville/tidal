@@ -197,6 +197,32 @@ defmodule Tidal.SessionTest do
     end
   end
 
+  describe "init_assigns" do
+    test "initial assigns are available in session state" do
+      {:ok, session_id} = Session.start(init_assigns: %{role: :admin, project_id: "abc"})
+      {:ok, state} = Session.get_state(session_id)
+
+      assert state.assigns[:role] == :admin
+      assert state.assigns[:project_id] == "abc"
+    end
+
+    test "defaults to empty map when not provided" do
+      {:ok, session_id} = Session.start()
+      {:ok, state} = Session.get_state(session_id)
+
+      assert state.assigns == %{}
+    end
+
+    test "can be updated via assign/3 after creation" do
+      {:ok, session_id} = Session.start(init_assigns: %{role: :admin})
+      :ok = Session.assign(session_id, :extra, "value")
+      {:ok, state} = Session.get_state(session_id)
+
+      assert state.assigns[:role] == :admin
+      assert state.assigns[:extra] == "value"
+    end
+  end
+
   describe "get_state/1" do
     test "returns full session state" do
       {:ok, session_id} = Session.start(capabilities: %{tools: true})

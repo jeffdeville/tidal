@@ -33,6 +33,11 @@ defmodule Tidal.Session.Options do
       type: {:list, :atom},
       default: [],
       doc: "List of modules implementing the Tidal.Tool.Middleware behaviour, applied in order."
+    ],
+    init_assigns: [
+      type: :map,
+      default: %{},
+      doc: "Initial assigns map merged into the session state on creation. Use for server-side context that middleware needs (e.g., arena config, role)."
     ]
   ]
 

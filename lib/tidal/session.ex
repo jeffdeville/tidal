@@ -76,7 +76,8 @@ defmodule Tidal.Session do
         server_info: validated[:server_info],
         tool_modules: tool_modules,
         resource_handlers: validated[:resource_handlers],
-        middleware: validated[:middleware]
+        middleware: validated[:middleware],
+        init_assigns: validated[:init_assigns]
       }
 
       case DynamicSupervisor.start_child(
@@ -222,7 +223,7 @@ defmodule Tidal.Session do
       server_info: init_arg.server_info,
       client_info: %{},
       client_capabilities: %{},
-      assigns: %{},
+      assigns: Map.get(init_arg, :init_assigns, %{}),
       timeout_ms: init_arg.timeout_ms,
       subscribers: MapSet.new(),
       tool_modules: Map.get(init_arg, :tool_modules, []),
