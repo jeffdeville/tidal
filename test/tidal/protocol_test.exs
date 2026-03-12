@@ -19,7 +19,7 @@ defmodule Tidal.ProtocolTest do
       request = %JSONRPC.Request{
         id: 1,
         method: "initialize",
-        params: %{"protocolVersion" => "2024-11-05", "capabilities" => %{}}
+        params: %{"protocolVersion" => "2025-11-25", "capabilities" => %{}}
       }
 
       {response, new_state} = Protocol.handle_request(request, base_state(:created))
@@ -31,7 +31,7 @@ defmodule Tidal.ProtocolTest do
       request = %JSONRPC.Request{
         id: 1,
         method: "initialize",
-        params: %{"protocolVersion" => "2024-11-05", "capabilities" => %{}}
+        params: %{"protocolVersion" => "2025-11-25", "capabilities" => %{}}
       }
 
       {response, _state} = Protocol.handle_request(request, base_state(:ready))
@@ -99,13 +99,13 @@ defmodule Tidal.ProtocolTest do
       request = %JSONRPC.Request{
         id: 1,
         method: "initialize",
-        params: %{"protocolVersion" => "2024-11-05", "capabilities" => %{}}
+        params: %{"protocolVersion" => "2025-11-25", "capabilities" => %{}}
       }
 
       state = base_state(:created)
       {response, _new_state} = Protocol.handle_request(request, state)
 
-      assert response.result["protocolVersion"] == "2024-11-05"
+      assert response.result["protocolVersion"] == "2025-11-25"
       assert is_map(response.result["capabilities"])
       assert response.result["serverInfo"] == %{"name" => "test", "version" => "0.1"}
     end

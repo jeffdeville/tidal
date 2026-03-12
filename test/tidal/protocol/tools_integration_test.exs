@@ -147,7 +147,7 @@ defmodule Tidal.Protocol.ToolsIntegrationTest do
       init_body =
         jsonrpc_request(
           "initialize",
-          %{"protocolVersion" => "2024-11-05", "capabilities" => %{}},
+          %{"protocolVersion" => "2025-11-25", "capabilities" => %{}},
           1
         )
 
@@ -164,7 +164,7 @@ defmodule Tidal.Protocol.ToolsIntegrationTest do
     init_body =
       jsonrpc_request(
         "initialize",
-        %{"protocolVersion" => "2024-11-05", "capabilities" => %{}},
+        %{"protocolVersion" => "2025-11-25", "capabilities" => %{}},
         1
       )
 

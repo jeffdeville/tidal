@@ -11,7 +11,7 @@ defmodule Tidal.Protocol do
 
   require Tidal.JSONRPC.ErrorCodes, as: ErrorCodes
 
-  @supported_protocol_version "2024-11-05"
+  @supported_protocol_version "2025-11-25"
 
   @doc """
   Returns the MCP protocol version supported by this server.

@@ -29,7 +29,7 @@ defmodule Tidal.Protocol.LifecycleTest do
         jsonrpc_request(
           "initialize",
           %{
-            "protocolVersion" => "2024-11-05",
+            "protocolVersion" => "2025-11-25",
             "capabilities" => %{},
             "clientInfo" => %{"name" => "test-client", "version" => "1.0"}
           },
@@ -42,7 +42,7 @@ defmodule Tidal.Protocol.LifecycleTest do
 
       result = Jason.decode!(resp_body)
       assert result["id"] == 1
-      assert result["result"]["protocolVersion"] == "2024-11-05"
+      assert result["result"]["protocolVersion"] == "2025-11-25"
       assert is_map(result["result"]["capabilities"])
       assert is_map(result["result"]["serverInfo"])
 
@@ -61,7 +61,7 @@ defmodule Tidal.Protocol.LifecycleTest do
         jsonrpc_request(
           "initialize",
           %{
-            "protocolVersion" => "2024-11-05",
+            "protocolVersion" => "2025-11-25",
             "capabilities" => %{"tools" => %{}},
             "clientInfo" => %{"name" => "my-client", "version" => "2.0"}
           },
@@ -84,7 +84,7 @@ defmodule Tidal.Protocol.LifecycleTest do
       init_body =
         jsonrpc_request(
           "initialize",
-          %{"protocolVersion" => "2024-11-05", "capabilities" => %{}},
+          %{"protocolVersion" => "2025-11-25", "capabilities" => %{}},
           1
         )
 
@@ -159,7 +159,7 @@ defmodule Tidal.Protocol.LifecycleTest do
       init_body =
         jsonrpc_request(
           "initialize",
-          %{"protocolVersion" => "2024-11-05", "capabilities" => %{}},
+          %{"protocolVersion" => "2025-11-25", "capabilities" => %{}},
           1
         )
 
@@ -182,7 +182,7 @@ defmodule Tidal.Protocol.LifecycleTest do
       init_body =
         jsonrpc_request(
           "initialize",
-          %{"protocolVersion" => "2024-11-05", "capabilities" => %{}},
+          %{"protocolVersion" => "2025-11-25", "capabilities" => %{}},
           2
         )
 
@@ -198,7 +198,7 @@ defmodule Tidal.Protocol.LifecycleTest do
       init_body =
         jsonrpc_request(
           "initialize",
-          %{"protocolVersion" => "2024-11-05", "capabilities" => %{}},
+          %{"protocolVersion" => "2025-11-25", "capabilities" => %{}},
           1
         )
 
@@ -259,7 +259,7 @@ defmodule Tidal.Protocol.LifecycleTest do
     init_body =
       jsonrpc_request(
         "initialize",
-        %{"protocolVersion" => "2024-11-05", "capabilities" => %{}},
+        %{"protocolVersion" => "2025-11-25", "capabilities" => %{}},
         1
       )
 

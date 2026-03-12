@@ -29,7 +29,7 @@ defmodule Tidal.PlugTest do
       body =
         jsonrpc_request(
           "initialize",
-          %{"protocolVersion" => "2024-11-05", "capabilities" => %{}},
+          %{"protocolVersion" => "2025-11-25", "capabilities" => %{}},
           1
         )
 
@@ -43,7 +43,7 @@ defmodule Tidal.PlugTest do
       decoded = Jason.decode!(resp_body)
       assert decoded["jsonrpc"] == "2.0"
       assert decoded["id"] == 1
-      assert decoded["result"]["protocolVersion"] == "2024-11-05"
+      assert decoded["result"]["protocolVersion"] == "2025-11-25"
       assert is_map(decoded["result"]["capabilities"])
       assert is_map(decoded["result"]["serverInfo"])
     end
@@ -52,7 +52,7 @@ defmodule Tidal.PlugTest do
       body =
         jsonrpc_request(
           "initialize",
-          %{"protocolVersion" => "2024-11-05", "capabilities" => %{}},
+          %{"protocolVersion" => "2025-11-25", "capabilities" => %{}},
           1
         )
 
@@ -142,7 +142,7 @@ defmodule Tidal.PlugTest do
       body =
         jsonrpc_request(
           "initialize",
-          %{"protocolVersion" => "2024-11-05", "capabilities" => %{}},
+          %{"protocolVersion" => "2025-11-25", "capabilities" => %{}},
           1
         )
 
@@ -158,7 +158,7 @@ defmodule Tidal.PlugTest do
       body =
         jsonrpc_request(
           "initialize",
-          %{"protocolVersion" => "2024-11-05", "capabilities" => %{}},
+          %{"protocolVersion" => "2025-11-25", "capabilities" => %{}},
           1
         )
 
@@ -307,7 +307,7 @@ defmodule Tidal.PlugTest do
       body =
         jsonrpc_request(
           "initialize",
-          %{"protocolVersion" => "2024-11-05", "capabilities" => %{}},
+          %{"protocolVersion" => "2025-11-25", "capabilities" => %{}},
           1
         )
 
@@ -324,7 +324,7 @@ defmodule Tidal.PlugTest do
       body =
         jsonrpc_request(
           "initialize",
-          %{"protocolVersion" => "2024-11-05", "capabilities" => %{}},
+          %{"protocolVersion" => "2025-11-25", "capabilities" => %{}},
           1
         )
 
@@ -341,7 +341,7 @@ defmodule Tidal.PlugTest do
       body =
         jsonrpc_request(
           "initialize",
-          %{"protocolVersion" => "2024-11-05", "capabilities" => %{}},
+          %{"protocolVersion" => "2025-11-25", "capabilities" => %{}},
           1
         )
 
@@ -372,7 +372,7 @@ defmodule Tidal.PlugTest do
     body =
       jsonrpc_request(
         "initialize",
-        %{"protocolVersion" => "2024-11-05", "capabilities" => %{}},
+        %{"protocolVersion" => "2025-11-25", "capabilities" => %{}},
         1
       )
 

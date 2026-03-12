@@ -424,7 +424,7 @@ defmodule Tidal.Protocol.ResourcesTest do
         jsonrpc_request(
           "initialize",
           %{
-            "protocolVersion" => "2024-11-05",
+            "protocolVersion" => "2025-11-25",
             "capabilities" => %{},
             "clientInfo" => %{"name" => "test-client", "version" => "1.0"}
           },
@@ -444,7 +444,7 @@ defmodule Tidal.Protocol.ResourcesTest do
     init_body =
       jsonrpc_request(
         "initialize",
-        %{"protocolVersion" => "2024-11-05", "capabilities" => %{}},
+        %{"protocolVersion" => "2025-11-25", "capabilities" => %{}},
         1
       )
 

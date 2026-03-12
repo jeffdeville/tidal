@@ -182,7 +182,7 @@ defmodule Tidal.EndToEndTest do
         jsonrpc_request(
           "initialize",
           %{
-            "protocolVersion" => "2024-11-05",
+            "protocolVersion" => "2025-11-25",
             "capabilities" => %{},
             "clientInfo" => %{"name" => "e2e-test-client", "version" => "1.0.0"}
           },
@@ -199,7 +199,7 @@ defmodule Tidal.EndToEndTest do
       result = Jason.decode!(resp_body)
       assert result["jsonrpc"] == "2.0"
       assert result["id"] == 1
-      assert result["result"]["protocolVersion"] == "2024-11-05"
+      assert result["result"]["protocolVersion"] == "2025-11-25"
       assert is_map(result["result"]["serverInfo"])
 
       # Verify capabilities advertise tools AND resources
@@ -570,7 +570,7 @@ defmodule Tidal.EndToEndTest do
         jsonrpc_request(
           "initialize",
           %{
-            "protocolVersion" => "2024-11-05",
+            "protocolVersion" => "2025-11-25",
             "capabilities" => %{},
             "clientInfo" => %{"name" => "smoke-test", "version" => "0.1.0"}
           },
@@ -581,7 +581,7 @@ defmodule Tidal.EndToEndTest do
       session_id = header_value(headers, ~c"mcp-session-id")
       assert session_id
       init_result = Jason.decode!(init_resp)["result"]
-      assert init_result["protocolVersion"] == "2024-11-05"
+      assert init_result["protocolVersion"] == "2025-11-25"
 
       # 2. Complete handshake
       {202, _, _} = post(port, jsonrpc_notification("notifications/initialized", %{}), session_id)
@@ -648,7 +648,7 @@ defmodule Tidal.EndToEndTest do
       jsonrpc_request(
         "initialize",
         %{
-          "protocolVersion" => "2024-11-05",
+          "protocolVersion" => "2025-11-25",
           "capabilities" => %{},
           "clientInfo" => %{"name" => "e2e-test", "version" => "1.0"}
         },
