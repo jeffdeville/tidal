@@ -43,6 +43,9 @@
           {Credo.Check.Readability.UnnecessaryAliasExpansion, []},
           {Credo.Check.Readability.VariableNames, []},
 
+          # Custom
+          {Tidal.Checks.NoNestedCase, []},
+
           # Refactoring
           {Credo.Check.Refactor.CondStatements, []},
           {Credo.Check.Refactor.CyclomaticComplexity, []},

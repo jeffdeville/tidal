@@ -24,20 +24,15 @@ defmodule Tidal.Tool.ErrorSpec do
   """
   @spec to_response(t(), map()) :: map()
   def to_response(%__MODULE__{} = spec, details \\ %{}) do
-    base = %{
+    %{
       "status" => "error",
       "error" => to_string(spec.name),
       "reason" => spec.desc,
-      "retryable" => spec.retryable
+      "retryable" => spec.retryable,
+      "recovery" => spec.recovery
     }
-
-    base =
-      if spec.recovery do
-        Map.put(base, "recovery", spec.recovery)
-      else
-        base
-      end
-
-    Map.merge(base, details)
+    |> Enum.reject(fn {_k, v} -> is_nil(v) end)
+    |> Map.new()
+    |> Map.merge(details)
   end
 end
