@@ -271,7 +271,24 @@ defmodule Tidal.Plug do
     end
   end
 
+  # When the body has already been parsed (e.g., by Phoenix's Plug.Parsers in
+  # the endpoint), Plug.Conn.read_body/1 returns an empty binary. In that case,
+  # re-encode the parsed body_params back to JSON. This lets Tidal.Plug work
+  # behind framework endpoints that consume the body before routing.
   defp read_body_string(conn) do
+    case conn.body_params do
+      %Plug.Conn.Unfetched{} ->
+        read_raw_body(conn)
+
+      params when is_map(params) and map_size(params) > 0 ->
+        {:ok, Jason.encode!(params)}
+
+      _ ->
+        read_raw_body(conn)
+    end
+  end
+
+  defp read_raw_body(conn) do
     case Plug.Conn.read_body(conn) do
       {:ok, body, _conn} -> {:ok, body}
       {:more, _partial, _conn} -> {:error, 413, %{"error" => "Request body too large"}}
