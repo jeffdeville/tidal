@@ -54,6 +54,12 @@ defmodule Tidal.MixProject do
   defp aliases do
     [
       quality: ["format --check-formatted", "credo --strict"],
+      precommit: [
+        "compile --warnings-as-errors",
+        "format --check-formatted",
+        "credo --strict",
+        "test"
+      ],
       "ci.test": ["coveralls.json --raise"]
     ]
   end

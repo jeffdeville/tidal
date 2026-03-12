@@ -55,4 +55,18 @@ defmodule Tidal.Tool do
   """
   @callback handle_tool_call(name :: String.t(), arguments :: map(), session :: map()) ::
               {:ok, ToolResult.t()} | {:error, String.t()}
+
+  @doc """
+  Executes a tool operation (used by `defop`-based modules).
+
+  Receives the operation name as an atom, validated params with atom keys,
+  and the session state. Returns `{:ok, result_map}`, `{:error, error_name}`,
+  or `{:error, error_name, details}`.
+
+  This callback is optional — only needed when using `Tidal.Tool.Operation`.
+  """
+  @callback execute(op_name :: atom(), params :: map(), session :: map()) ::
+              {:ok, map()} | {:error, atom()} | {:error, atom(), map()}
+
+  @optional_callbacks [execute: 3]
 end
