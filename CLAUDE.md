@@ -60,7 +60,10 @@ Each MCP client gets its own isolated GenServer session. No shared state between
 | `Tidal.Tool.Operation` | `defop` macro for declarative tool definitions |
 | `Tidal.Tool.SchemaBuilder` | Converts param declarations to JSON Schema |
 | `Tidal.Tool.ErrorSpec` | Structured error catalog entries |
+| `Tidal.Tool.Middleware` | Behaviour for pluggable tool dispatch hooks |
+| `Tidal.Tool.Pipeline` | Executes middleware chain around tool handler |
 | `Tidal.Registry` | Queryable catalog of all registered tool operations |
+| `Tidal.Checks.NoNestedCase` | Custom Credo check: flags nested `case` statements |
 | `Tidal.Resource` | Behaviour for resource modules |
 | `Tidal.JSONRPC` | JSON-RPC 2.0 encode/decode |
 
@@ -120,6 +123,30 @@ end
 
 `defop` auto-generates JSON Schema, tool definitions, structured error formatting,
 and introspection functions (`__tidal_operations__/0`, `__tidal_errors__/1`).
+
+### Middleware
+
+Pluggable before/after hooks on tool dispatch. Middleware wraps the tool handler:
+
+```elixir
+defmodule MyApp.Middleware.Logger do
+  @behaviour Tidal.Tool.Middleware
+
+  @impl true
+  def call(tool_name, arguments, session, next) do
+    Logger.info("Calling: #{tool_name}")
+    {:ok, result, session} = next.(tool_name, arguments, session)
+    Logger.info("Done: #{tool_name}")
+    {:ok, result, session}
+  end
+end
+
+# Configure per-session:
+Session.start(tool_modules: [MyTools], middleware: [MyApp.Middleware.Logger])
+```
+
+Middleware can modify arguments, short-circuit calls, or transform results.
+First in the list = outermost (runs first on the way in, last on the way out).
 
 ## Code Style
 

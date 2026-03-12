@@ -28,6 +28,11 @@ defmodule Tidal.Session.Options do
       type: {:list, :atom},
       default: [],
       doc: "List of modules implementing the Tidal.Resource behaviour."
+    ],
+    middleware: [
+      type: {:list, :atom},
+      default: [],
+      doc: "List of modules implementing the Tidal.Tool.Middleware behaviour, applied in order."
     ]
   ]
 

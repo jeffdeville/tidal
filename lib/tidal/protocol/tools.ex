@@ -5,6 +5,7 @@ defmodule Tidal.Protocol.Tools do
 
   alias Tidal.JSONRPC
   alias Tidal.Protocol.{Tool, ToolResult, TextContent}
+  alias Tidal.Tool.Pipeline
 
   require Tidal.JSONRPC.ErrorCodes, as: ErrorCodes
 
@@ -67,40 +68,45 @@ defmodule Tidal.Protocol.Tools do
   end
 
   defp invoke_tool(module, tool, tool_name, arguments, request, state) do
-    case validate_arguments(tool, arguments) do
-      :ok ->
-        case module.handle_tool_call(tool_name, arguments, state) do
-          {:ok, %ToolResult{} = result} ->
-            response = %JSONRPC.Response{
-              id: request.id,
-              result: ToolResult.to_map(result)
-            }
-
-            {response, state}
-
-          {:error, reason} when is_binary(reason) ->
-            error_result = %ToolResult{
-              content: [%TextContent{text: reason}],
-              is_error: true
-            }
-
-            response = %JSONRPC.Response{
-              id: request.id,
-              result: ToolResult.to_map(error_result)
-            }
-
-            {response, state}
-        end
-
-      {:error, validation_error} ->
+    with :ok <- validate_arguments(tool, arguments),
+         {:ok, result} <- run_pipeline(module, tool_name, arguments, state) do
+      response = %JSONRPC.Response{id: request.id, result: ToolResult.to_map(result)}
+      {response, state}
+    else
+      {:error, :validation, msg} ->
         error = %JSONRPC.Error{
           id: request.id,
           code: ErrorCodes.invalid_params(),
           message: "Invalid params",
-          data: validation_error
+          data: msg
         }
 
         {error, state}
+
+      {:error, reason} when is_binary(reason) ->
+        error_result = %ToolResult{
+          content: [%TextContent{text: reason}],
+          is_error: true
+        }
+
+        response = %JSONRPC.Response{id: request.id, result: ToolResult.to_map(error_result)}
+        {response, state}
+    end
+  end
+
+  defp run_pipeline(module, tool_name, arguments, state) do
+    middleware = Map.get(state, :middleware, [])
+
+    handler = fn _name, args, session ->
+      case module.handle_tool_call(tool_name, args, session) do
+        {:ok, %ToolResult{} = result} -> {:ok, result, session}
+        {:error, reason} -> {:error, reason}
+      end
+    end
+
+    case Pipeline.call(middleware, tool_name, arguments, state, handler) do
+      {:ok, %ToolResult{} = result, _session} -> {:ok, result}
+      {:error, reason} -> {:error, reason}
     end
   end
 
@@ -116,7 +122,7 @@ defmodule Tidal.Protocol.Tools do
 
     case missing do
       [] -> :ok
-      fields -> {:error, "missing required arguments: #{Enum.join(fields, ", ")}"}
+      fields -> {:error, :validation, "missing required arguments: #{Enum.join(fields, ", ")}"}
     end
   end
 
