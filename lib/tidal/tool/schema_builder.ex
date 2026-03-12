@@ -45,14 +45,12 @@ defmodule Tidal.Tool.SchemaBuilder do
       |> Enum.filter(& &1[:required])
       |> Enum.map(&to_string(&1.name))
 
-    schema = %{"type" => "object", "properties" => properties}
-
-    if required == [] do
-      schema
-    else
-      Map.put(schema, "required", required)
-    end
+    %{"type" => "object", "properties" => properties}
+    |> maybe_put_required(required)
   end
+
+  defp maybe_put_required(schema, []), do: schema
+  defp maybe_put_required(schema, required), do: Map.put(schema, "required", required)
 
   defp field_to_schema(field) do
     base = type_to_schema(field.type, field[:fields])
