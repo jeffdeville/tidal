@@ -37,6 +37,7 @@ defmodule Tidal.Session do
           subscribers: MapSet.t(),
           tool_modules: [module()],
           resource_handlers: [module()],
+          middleware: [module()],
           resource_subscriptions: MapSet.t()
         }
 
@@ -74,7 +75,8 @@ defmodule Tidal.Session do
         capabilities: capabilities,
         server_info: validated[:server_info],
         tool_modules: tool_modules,
-        resource_handlers: validated[:resource_handlers]
+        resource_handlers: validated[:resource_handlers],
+        middleware: validated[:middleware]
       }
 
       case DynamicSupervisor.start_child(
@@ -225,6 +227,7 @@ defmodule Tidal.Session do
       subscribers: MapSet.new(),
       tool_modules: Map.get(init_arg, :tool_modules, []),
       resource_handlers: Map.get(init_arg, :resource_handlers, []),
+      middleware: Map.get(init_arg, :middleware, []),
       resource_subscriptions: MapSet.new()
     }
 
