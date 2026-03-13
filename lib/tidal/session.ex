@@ -84,8 +84,12 @@ defmodule Tidal.Session do
              Tidal.SessionSupervisor,
              {__MODULE__, init_arg}
            ) do
-        {:ok, _pid} -> {:ok, session_id}
-        {:error, _} = error -> error
+        {:ok, _pid} ->
+          cache_session_opts(session_id, opts)
+          {:ok, session_id}
+
+        {:error, _} = error ->
+          error
       end
     end
   end
@@ -116,11 +120,40 @@ defmodule Tidal.Session do
         GenServer.stop(pid, :normal)
 
         receive do
-          {:DOWN, ^ref, :process, ^pid, _reason} -> :ok
+          {:DOWN, ^ref, :process, ^pid, _reason} ->
+            delete_session_cache(session_id)
+            :ok
         end
 
       {:error, :not_found} ->
         {:error, :not_found}
+    end
+  end
+
+  @doc """
+  Attempts to create a new session using cached opts from an expired session.
+
+  When a session times out, its ETS cache entry is preserved. This function
+  looks up the cached opts, creates a new session with the same configuration,
+  and updates the cache so the old session_id redirects to the new one.
+
+  Returns `{:ok, new_session_id}` or `{:error, :no_cache}`.
+  """
+  @spec reconnect(session_id()) :: {:ok, session_id()} | {:error, :no_cache | term()}
+  def reconnect(old_session_id) do
+    case lookup_session_cache(old_session_id) do
+      {:ok, {:redirect, new_session_id}} ->
+        # Already reconnected — follow the redirect if the target is alive
+        case get(new_session_id) do
+          {:ok, _pid} -> {:ok, new_session_id}
+          {:error, :not_found} -> do_reconnect(old_session_id, new_session_id)
+        end
+
+      {:ok, opts} when is_list(opts) ->
+        do_reconnect(old_session_id, opts)
+
+      :error ->
+        {:error, :no_cache}
     end
   end
 
@@ -316,10 +349,58 @@ defmodule Tidal.Session do
     {:noreply, state, state.timeout_ms}
   end
 
+  @impl true
+  def terminate(_reason, %{lifecycle: :shutting_down} = state) do
+    delete_session_cache(state.session_id)
+    :ok
+  end
+
+  def terminate(_reason, _state), do: :ok
+
   # ── Helpers ─────────────────────────────────────────────────────────
 
   defp generate_session_id do
     :crypto.strong_rand_bytes(24)
     |> Base.url_encode64(padding: false)
+  end
+
+  defp do_reconnect(old_session_id, redirect_session_id) when is_binary(redirect_session_id) do
+    # The redirect target is dead too — look up the original opts from the redirect chain
+    case lookup_session_cache(redirect_session_id) do
+      {:ok, opts} when is_list(opts) ->
+        do_reconnect(old_session_id, opts)
+
+      _ ->
+        {:error, :no_cache}
+    end
+  end
+
+  defp do_reconnect(old_session_id, opts) when is_list(opts) do
+    case start(opts) do
+      {:ok, new_session_id} ->
+        # Replace old cache entry with a redirect to the new session
+        :ets.insert(:tidal_session_cache, {old_session_id, {:redirect, new_session_id}})
+        {:ok, new_session_id}
+
+      {:error, _} = error ->
+        error
+    end
+  end
+
+  # ── Session Cache ──────────────────────────────────────────────────
+
+  defp cache_session_opts(session_id, opts) do
+    :ets.insert(:tidal_session_cache, {session_id, opts})
+  end
+
+  defp delete_session_cache(session_id) do
+    :ets.delete(:tidal_session_cache, session_id)
+  end
+
+  defp lookup_session_cache(session_id) do
+    case :ets.lookup(:tidal_session_cache, session_id) do
+      [{^session_id, value}] -> {:ok, value}
+      [] -> :error
+    end
   end
 end

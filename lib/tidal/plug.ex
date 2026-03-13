@@ -72,8 +72,8 @@ defmodule Tidal.Plug do
   get "/" do
     with :ok <- validate_accept(conn),
          {:ok, session_id} <- require_session_header(conn),
-         {:ok, _pid} <- lookup_session(session_id) do
-      serve_sse(conn, session_id)
+         {:ok_or_reconnected, resolved_session_id} <- resolve_session(session_id) do
+      serve_sse(conn, resolved_session_id)
     else
       {:error, status, body} ->
         send_json_response(conn, status, body)
@@ -149,7 +149,7 @@ defmodule Tidal.Plug do
         |> send_json_response(200, response)
 
       {:error, :not_found} ->
-        send_json_response(conn, 404, %{"error" => "session not found"})
+        maybe_reconnect_and_dispatch(conn, session_id, request)
     end
   end
 
@@ -161,7 +161,7 @@ defmodule Tidal.Plug do
         |> send_resp(202, "")
 
       {:error, :not_found} ->
-        send_json_response(conn, 404, %{"error" => "session not found"})
+        maybe_reconnect_and_dispatch(conn, session_id, notification)
     end
   end
 
@@ -323,10 +323,83 @@ defmodule Tidal.Plug do
     end
   end
 
-  defp lookup_session(session_id) do
+  defp resolve_session(session_id) do
     case Session.get(session_id) do
-      {:ok, pid} -> {:ok, pid}
-      {:error, :not_found} -> {:error, 404, %{"error" => "session not found"}}
+      {:ok, _pid} ->
+        {:ok_or_reconnected, session_id}
+
+      {:error, :not_found} ->
+        case Session.reconnect(session_id) do
+          {:ok, new_session_id} -> {:ok_or_reconnected, new_session_id}
+          _ -> {:error, 404, %{"error" => "session not found"}}
+        end
+    end
+  end
+
+  defp maybe_reconnect_and_dispatch(conn, old_session_id, message) do
+    case Session.reconnect(old_session_id) do
+      {:ok, new_session_id} ->
+        # Re-initialize the new session before dispatching
+        reconnect_and_reinitialize(conn, new_session_id, message)
+
+      _ ->
+        send_json_response(conn, 404, %{"error" => "session not found"})
+    end
+  end
+
+  defp reconnect_and_reinitialize(conn, new_session_id, %JSONRPC.Request{} = request) do
+    # The new session is in :created state — initialize it first
+    init_request = %JSONRPC.Request{
+      method: "initialize",
+      params: %{"protocolVersion" => "2025-11-25", "capabilities" => %{}},
+      id: "__reconnect_init__"
+    }
+
+    {:ok, _init_response} = Session.handle_message(new_session_id, init_request)
+
+    initialized = %Tidal.JSONRPC.Notification{
+      method: "notifications/initialized",
+      params: %{}
+    }
+
+    {:ok, :no_response} = Session.handle_message(new_session_id, initialized)
+
+    # Now dispatch the original request
+    case Session.handle_message(new_session_id, request) do
+      {:ok, response} ->
+        conn
+        |> put_resp_header("mcp-session-id", new_session_id)
+        |> send_json_response(200, response)
+
+      {:error, _reason} ->
+        send_json_response(conn, 500, %{"error" => "reconnect failed"})
+    end
+  end
+
+  defp reconnect_and_reinitialize(conn, new_session_id, %JSONRPC.Notification{} = notification) do
+    init_request = %JSONRPC.Request{
+      method: "initialize",
+      params: %{"protocolVersion" => "2025-11-25", "capabilities" => %{}},
+      id: "__reconnect_init__"
+    }
+
+    {:ok, _init_response} = Session.handle_message(new_session_id, init_request)
+
+    initialized = %Tidal.JSONRPC.Notification{
+      method: "notifications/initialized",
+      params: %{}
+    }
+
+    {:ok, :no_response} = Session.handle_message(new_session_id, initialized)
+
+    case Session.handle_message(new_session_id, notification) do
+      {:ok, :no_response} ->
+        conn
+        |> put_resp_header("mcp-session-id", new_session_id)
+        |> send_resp(202, "")
+
+      {:error, _reason} ->
+        send_json_response(conn, 500, %{"error" => "reconnect failed"})
     end
   end
 

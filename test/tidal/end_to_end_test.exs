@@ -440,8 +440,10 @@ defmodule Tidal.EndToEndTest do
       # Give the supervisor a moment to clean up
       Process.sleep(50)
 
-      # Doomed session should be gone
-      {404, _, _} = post(port, jsonrpc_request("ping", %{}, 51), session_doomed)
+      # Doomed session auto-reconnects with a new session ID
+      {200, headers, _} = post(port, jsonrpc_request("ping", %{}, 51), session_doomed)
+      reconnected_session_id = header_value(headers, ~c"mcp-session-id")
+      assert reconnected_session_id != session_doomed
 
       # Alive session should still work perfectly
       {200, _, ping_resp} = post(port, jsonrpc_request("ping", %{}, 51), session_alive)

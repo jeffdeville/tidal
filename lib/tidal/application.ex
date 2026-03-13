@@ -5,6 +5,8 @@ defmodule Tidal.Application do
 
   @impl true
   def start(_type, _args) do
+    :ets.new(:tidal_session_cache, [:set, :public, :named_table, read_concurrency: true])
+
     children = [
       {Registry, keys: :unique, name: Tidal.SessionRegistry},
       {DynamicSupervisor, strategy: :one_for_one, name: Tidal.SessionSupervisor}
