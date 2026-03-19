@@ -1,0 +1,12 @@
+# Runtime surface definitions for health-monitored services.
+# Each surface represents a service accessible via Cloudflare Tunnel.
+#
+# Example entry:
+#   - name: "My App Dashboard"
+#     subdomain: my-app
+#     local_port: 4000
+#     health_path: /health
+#     service_type: phoenix
+#     public_hostname: my-app.example.com
+
+surfaces: []
