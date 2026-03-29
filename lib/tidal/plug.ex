@@ -355,22 +355,18 @@ defmodule Tidal.Plug do
       id: "__reconnect_init__"
     }
 
-    {:ok, _init_response} = Session.handle_message(new_session_id, init_request)
-
     initialized = %Tidal.JSONRPC.Notification{
       method: "notifications/initialized",
       params: %{}
     }
 
-    {:ok, :no_response} = Session.handle_message(new_session_id, initialized)
-
-    # Now dispatch the original request
-    case Session.handle_message(new_session_id, request) do
-      {:ok, response} ->
-        conn
-        |> put_resp_header("mcp-session-id", new_session_id)
-        |> send_json_response(200, response)
-
+    with {:ok, _init_response} <- Session.handle_message(new_session_id, init_request),
+         {:ok, :no_response} <- Session.handle_message(new_session_id, initialized),
+         {:ok, response} <- Session.handle_message(new_session_id, request) do
+      conn
+      |> put_resp_header("mcp-session-id", new_session_id)
+      |> send_json_response(200, response)
+    else
       {:error, _reason} ->
         send_json_response(conn, 500, %{"error" => "reconnect failed"})
     end
@@ -383,21 +379,23 @@ defmodule Tidal.Plug do
       id: "__reconnect_init__"
     }
 
-    {:ok, _init_response} = Session.handle_message(new_session_id, init_request)
-
     initialized = %Tidal.JSONRPC.Notification{
       method: "notifications/initialized",
       params: %{}
     }
 
-    {:ok, :no_response} = Session.handle_message(new_session_id, initialized)
+    with {:ok, _init_response} <- Session.handle_message(new_session_id, init_request),
+         {:ok, :no_response} <- Session.handle_message(new_session_id, initialized) do
+      case Session.handle_message(new_session_id, notification) do
+        {:ok, :no_response} ->
+          conn
+          |> put_resp_header("mcp-session-id", new_session_id)
+          |> send_resp(202, "")
 
-    case Session.handle_message(new_session_id, notification) do
-      {:ok, :no_response} ->
-        conn
-        |> put_resp_header("mcp-session-id", new_session_id)
-        |> send_resp(202, "")
-
+        {:error, _reason} ->
+          send_json_response(conn, 500, %{"error" => "reconnect failed"})
+      end
+    else
       {:error, _reason} ->
         send_json_response(conn, 500, %{"error" => "reconnect failed"})
     end
