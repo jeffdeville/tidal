@@ -32,9 +32,14 @@ defmodule Tidal.Protocol.Lifecycle do
 
       response = %JSONRPC.Response{id: request.id, result: result}
 
+      lifecycle =
+        if client_protocol_version == Protocol.supported_protocol_version(),
+          do: :initializing,
+          else: :ready
+
       new_state =
         state
-        |> Map.put(:lifecycle, :initializing)
+        |> Map.put(:lifecycle, lifecycle)
         |> Map.put(:client_info, client_info)
         |> Map.put(:client_capabilities, client_capabilities)
 
@@ -101,7 +106,7 @@ defmodule Tidal.Protocol.Lifecycle do
   defp compatible_protocol_version?(nil), do: false
 
   defp compatible_protocol_version?(version) when is_binary(version) do
-    version == Protocol.supported_protocol_version()
+    version in [Protocol.supported_protocol_version(), "2025-06-18", "2025-03-26", "2024-11-05"]
   end
 
   defp compatible_protocol_version?(_), do: false
