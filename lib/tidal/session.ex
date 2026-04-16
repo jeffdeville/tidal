@@ -240,9 +240,7 @@ defmodule Tidal.Session do
   def start_link(init_arg) do
     session_id = init_arg.session_id
 
-    GenServer.start_link(__MODULE__, init_arg,
-      name: {:via, Registry, {Tidal.SessionRegistry, session_id}}
-    )
+    GenServer.start_link(__MODULE__, init_arg, name: {:via, Registry, {Tidal.SessionRegistry, session_id}})
   end
 
   # ── Server Callbacks ────────────────────────────────────────────────

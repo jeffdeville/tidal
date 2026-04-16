@@ -95,8 +95,7 @@ defmodule Tidal.Tool.Operation do
         idempotent: Module.get_attribute(__MODULE__, :_tidal_idempotent) || false,
         guidance: Module.get_attribute(__MODULE__, :_tidal_guidance),
         params: Module.get_attribute(__MODULE__, :_tidal_params) |> Enum.reverse(),
-        success_fields:
-          Module.get_attribute(__MODULE__, :_tidal_success_fields) |> Enum.reverse(),
+        success_fields: Module.get_attribute(__MODULE__, :_tidal_success_fields) |> Enum.reverse(),
         errors: Module.get_attribute(__MODULE__, :_tidal_errors) |> Enum.reverse()
       }
     end

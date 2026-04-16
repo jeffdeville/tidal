@@ -160,9 +160,7 @@ defmodule Tidal.EndToEndTest do
 
     {:ok, server} =
       Bandit.start_link(
-        plug:
-          {Tidal.Plug,
-           tool_modules: [SampleToolHandler], resource_handlers: [SampleResourceHandler]},
+        plug: {Tidal.Plug, tool_modules: [SampleToolHandler], resource_handlers: [SampleResourceHandler]},
         port: 0,
         ip: :loopback,
         thousand_island_options: [transport_options: [ip: {127, 0, 0, 1}]]

@@ -115,8 +115,7 @@ defmodule Tidal.JSONRPC do
   end
 
   defp decode_single(%{"jsonrpc" => version}) when version != "2.0" do
-    {:error,
-     invalid_request_error_struct(nil, "unsupported jsonrpc version: #{inspect(version)}")}
+    {:error, invalid_request_error_struct(nil, "unsupported jsonrpc version: #{inspect(version)}")}
   end
 
   defp decode_single(map) when is_map(map) do
