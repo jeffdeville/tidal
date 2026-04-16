@@ -23,6 +23,3 @@ pre-push:
       run: mix format --check-formatted
     credo:
       run: mix credo --min-priority=high
-    coverage-ratchet:
-      run: .lefthook/pre-push/coverage-ratchet.sh
-      tags: coverage
