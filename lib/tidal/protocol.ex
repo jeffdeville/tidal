@@ -71,6 +71,7 @@ defmodule Tidal.Protocol do
   defp check_lifecycle("notifications/initialized", lifecycle) do
     case lifecycle do
       :initializing -> :ok
+      :ready -> :ok
       :created -> {:error, "must send initialize request first"}
       _ -> {:error, "session already initialized"}
     end

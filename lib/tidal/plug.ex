@@ -23,8 +23,8 @@ defmodule Tidal.Plug do
 
     * `Mcp-Session-Id` — required for established sessions (POST with existing session,
       GET, DELETE). Generated automatically for new sessions on the first POST (initialize).
-    * `Accept` — must include both `application/json` and `text/event-stream` for
-      POST and GET requests per the MCP spec.
+    * `Accept` — must include `application/json` for POST requests and
+      `text/event-stream` for GET requests. `*/*` is accepted for either.
     * `Content-Type` — must be `application/json` for POST requests.
   """
 
@@ -33,7 +33,10 @@ defmodule Tidal.Plug do
   alias Tidal.JSONRPC
   alias Tidal.Session
 
+  require Logger
   require Tidal.JSONRPC.ErrorCodes, as: ErrorCodes
+
+  @sse_heartbeat_ms 30_000
 
   plug(:match)
   plug(:dispatch)
@@ -221,8 +224,12 @@ defmodule Tidal.Plug do
         case format_sse_event(message) do
           {:ok, event_data} ->
             case Plug.Conn.chunk(conn, event_data) do
-              {:ok, conn} -> sse_loop(conn)
-              {:error, _reason} -> conn
+              {:ok, conn} ->
+                sse_loop(conn)
+
+              {:error, reason} ->
+                Logger.info("SSE client disconnected: #{inspect(reason)}")
+                conn
             end
 
           {:error, _} ->
@@ -231,6 +238,16 @@ defmodule Tidal.Plug do
 
       :close ->
         conn
+    after
+      @sse_heartbeat_ms ->
+        case Plug.Conn.chunk(conn, ": keepalive\n\n") do
+          {:ok, conn} ->
+            sse_loop(conn)
+
+          {:error, reason} ->
+            Logger.info("SSE client disconnected during heartbeat: #{inspect(reason)}")
+            conn
+        end
     end
   end
 
@@ -253,13 +270,23 @@ defmodule Tidal.Plug do
     has_sse = String.contains?(accept, "text/event-stream")
     has_wildcard = String.contains?(accept, "*/*")
 
-    if (has_json and has_sse) or has_wildcard do
-      :ok
-    else
-      {:error, 406,
-       %{"error" => "Accept header must include both application/json and text/event-stream"}}
+    case conn.method do
+      "GET" when has_sse or has_wildcard ->
+        :ok
+
+      "POST" when has_json or has_wildcard ->
+        :ok
+
+      method when method in ["GET", "POST"] ->
+        {:error, 406, %{"error" => accept_error_message(method)}}
+
+      _other ->
+        :ok
     end
   end
+
+  defp accept_error_message("GET"), do: "Accept header must include text/event-stream"
+  defp accept_error_message("POST"), do: "Accept header must include application/json"
 
   defp validate_content_type(conn) do
     content_type = get_req_header(conn, "content-type") |> Enum.join("")
@@ -348,7 +375,6 @@ defmodule Tidal.Plug do
   end
 
   defp reconnect_and_reinitialize(conn, new_session_id, %JSONRPC.Request{} = request) do
-    # The new session is in :created state — initialize it first
     init_request = %JSONRPC.Request{
       method: "initialize",
       params: %{"protocolVersion" => "2025-11-25", "capabilities" => %{}},
@@ -360,15 +386,25 @@ defmodule Tidal.Plug do
       params: %{}
     }
 
-    with {:ok, _init_response} <- Session.handle_message(new_session_id, init_request),
-         {:ok, :no_response} <- Session.handle_message(new_session_id, initialized),
-         {:ok, response} <- Session.handle_message(new_session_id, request) do
+    with {:init_request, {:ok, _init_response}} <-
+           {:init_request, Session.handle_message(new_session_id, init_request)},
+         {:initialized_notification, {:ok, :no_response}} <-
+           {:initialized_notification, Session.handle_message(new_session_id, initialized)},
+         {:dispatch, {:ok, response}} <-
+           {:dispatch, Session.handle_message(new_session_id, request)} do
       conn
       |> put_resp_header("mcp-session-id", new_session_id)
       |> send_json_response(200, response)
     else
-      {:error, _reason} ->
-        send_json_response(conn, 500, %{"error" => "reconnect failed"})
+      {step, {:error, reason}} ->
+        Logger.warning("Reconnect failed at #{step}: #{inspect(reason)}")
+        terminate_partial_session(new_session_id)
+
+        send_json_response(conn, 500, %{
+          "error" => "reconnect failed",
+          "step" => to_string(step),
+          "reason" => inspect(reason)
+        })
     end
   end
 
@@ -384,20 +420,32 @@ defmodule Tidal.Plug do
       params: %{}
     }
 
-    with {:ok, _init_response} <- Session.handle_message(new_session_id, init_request),
-         {:ok, :no_response} <- Session.handle_message(new_session_id, initialized) do
-      case Session.handle_message(new_session_id, notification) do
-        {:ok, :no_response} ->
-          conn
-          |> put_resp_header("mcp-session-id", new_session_id)
-          |> send_resp(202, "")
-
-        {:error, _reason} ->
-          send_json_response(conn, 500, %{"error" => "reconnect failed"})
-      end
+    with {:init_request, {:ok, _init_response}} <-
+           {:init_request, Session.handle_message(new_session_id, init_request)},
+         {:initialized_notification, {:ok, :no_response}} <-
+           {:initialized_notification, Session.handle_message(new_session_id, initialized)},
+         {:dispatch, {:ok, :no_response}} <-
+           {:dispatch, Session.handle_message(new_session_id, notification)} do
+      conn
+      |> put_resp_header("mcp-session-id", new_session_id)
+      |> send_resp(202, "")
     else
-      {:error, _reason} ->
-        send_json_response(conn, 500, %{"error" => "reconnect failed"})
+      {step, {:error, reason}} ->
+        Logger.warning("Reconnect failed at #{step}: #{inspect(reason)}")
+        terminate_partial_session(new_session_id)
+
+        send_json_response(conn, 500, %{
+          "error" => "reconnect failed",
+          "step" => to_string(step),
+          "reason" => inspect(reason)
+        })
+    end
+  end
+
+  defp terminate_partial_session(session_id) do
+    case Session.terminate(session_id) do
+      :ok -> :ok
+      {:error, :not_found} -> :ok
     end
   end
 

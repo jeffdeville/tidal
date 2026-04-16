@@ -86,11 +86,11 @@ defmodule Tidal.ProtocolTest do
       assert reason =~ "must send initialize request first"
     end
 
-    test "rejects initialized notification in :ready state" do
+    test "accepts initialized notification in :ready state (idempotent for older clients)" do
       notification = %JSONRPC.Notification{method: "notifications/initialized"}
 
-      {:error, reason, _state} = Protocol.handle_notification(notification, base_state(:ready))
-      assert reason =~ "already initialized"
+      {:ok, state} = Protocol.handle_notification(notification, base_state(:ready))
+      assert state.lifecycle == :ready
     end
   end
 

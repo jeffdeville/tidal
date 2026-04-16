@@ -317,7 +317,7 @@ defmodule Tidal.PlugTest do
       assert status == 200
     end
 
-    test "rejects Accept with only application/json", %{port: port} do
+    test "accepts POST with only application/json", %{port: port} do
       url = ~c"http://127.0.0.1:#{port}/"
       headers = [{~c"accept", ~c"application/json"}]
 
@@ -331,10 +331,10 @@ defmodule Tidal.PlugTest do
       {:ok, {{_, status, _}, _headers, _body}} =
         :httpc.request(:post, {url, headers, ~c"application/json", body}, [], [])
 
-      assert status == 406
+      assert status == 200
     end
 
-    test "rejects Accept with only text/event-stream", %{port: port} do
+    test "rejects POST with only text/event-stream", %{port: port} do
       url = ~c"http://127.0.0.1:#{port}/"
       headers = [{~c"accept", ~c"text/event-stream"}]
 
@@ -349,6 +349,46 @@ defmodule Tidal.PlugTest do
         :httpc.request(:post, {url, headers, ~c"application/json", body}, [], [])
 
       assert status == 406
+    end
+
+    test "accepts GET with only text/event-stream", %{port: port} do
+      session_id = create_initialized_session(port)
+      {:ok, socket} = :gen_tcp.connect(~c"127.0.0.1", port, [:binary, active: false])
+
+      request =
+        "GET / HTTP/1.1\r\n" <>
+          "Host: 127.0.0.1:#{port}\r\n" <>
+          "Accept: text/event-stream\r\n" <>
+          "Mcp-Session-Id: #{session_id}\r\n" <>
+          "\r\n"
+
+      :ok = :gen_tcp.send(socket, request)
+      {:ok, data} = :gen_tcp.recv(socket, 0, 2_000)
+
+      assert data =~ "HTTP/1.1 200"
+      assert data =~ "text/event-stream"
+
+      :gen_tcp.close(socket)
+    end
+
+    test "rejects GET with only application/json", %{port: port} do
+      session_id = create_initialized_session(port)
+      {:ok, socket} = :gen_tcp.connect(~c"127.0.0.1", port, [:binary, active: false])
+
+      request =
+        "GET / HTTP/1.1\r\n" <>
+          "Host: 127.0.0.1:#{port}\r\n" <>
+          "Accept: application/json\r\n" <>
+          "Mcp-Session-Id: #{session_id}\r\n" <>
+          "\r\n"
+
+      :ok = :gen_tcp.send(socket, request)
+      {:ok, data} = :gen_tcp.recv(socket, 0, 2_000)
+
+      assert data =~ "HTTP/1.1 406"
+      assert data =~ "Accept header must include text/event-stream"
+
+      :gen_tcp.close(socket)
     end
   end
 
