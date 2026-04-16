@@ -28,5 +28,4 @@ tidal-*.tar
 /tmp/
 
 # External tool artifacts
-.colony/
 .serena/
