@@ -57,6 +57,15 @@ Building or improving test tooling, helpers, factories, or test architecture
   - Does not introduce flaky test patterns
   - Test isolation maintained (no shared mutable state between tests)
 
+### config_migration
+Applying a Colony config migration (schema changes to `.colony/` YAML/JSON files)
+- deliverable: validated
+- default_criteria:
+  - Migration applied cleanly via the `apply-config-migration` skill
+  - No data loss in existing config files
+  - Committed with standard `chore: apply config migration` message
+- notes: Mechanical, single-task directives. Solo leader delegation is sufficient — no expert panel needed.
+
 ### bug_fix
 Fixing a defect in existing functionality
 - deliverable: pr_merged

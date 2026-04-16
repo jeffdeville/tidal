@@ -1,0 +1,91 @@
+---
+synced_from_colony: true
+sync_pack: merged
+sync_source: packs/*/readiness/*.yaml
+sync_version: d3fefcef
+---
+- id: ci-pipeline
+  title: "CI pipeline runs tests on push"
+  priority: high
+  source_pack: universal
+  description: "A CI workflow runs the test suite on every push to the default branch\nand on pull requests. Without CI, broken code can be merged."
+  detection:
+    files_exist:
+      - .github/workflows/ci.yml
+  remediation:
+    directive_hint: "Set up a GitHub Actions CI workflow that runs tests, compilation\nchecks, and formatting on push and pull request."
+- id: health-endpoint
+  title: "Health check endpoint configured"
+  priority: medium
+  source_pack: universal
+  description: "App exposes a /health or /healthz endpoint that returns HTTP 200\nwhen the service is running. Required for Monit supervision and\nload balancer health checks."
+  detection:
+    files_contain:
+      "lib/**/endpoint.ex": "/health"
+  remediation:
+    skill: deploy-service
+    directive_hint: "Add a health check endpoint that returns 200 OK when the\napplication is running and can serve requests."
+- id: secret-management
+  title: "Secrets managed via environment variables"
+  priority: high
+  source_pack: universal
+  description: "Application secrets (API keys, database URLs, tokens) are loaded from\nenvironment variables or a secret manager, never hardcoded in source.\nAn .envrc.template documents required variables."
+  detection:
+    files_exist:
+      - .envrc.template
+  remediation:
+    skill: secrets
+    directive_hint: "Create .envrc.template documenting all required environment variables\nwith 1Password references. Ensure no secrets are hardcoded in source."
+- id: credo-configured
+  title: "Credo strict mode with custom checks"
+  priority: medium
+  source_pack: elixir
+  description: "Credo runs in strict mode with Colony's custom checks for code style\nenforcement. This catches common issues (nested case, varchar misuse)\nbefore code review."
+  detection:
+    files_exist:
+      - .credo.exs
+  remediation:
+    directive_hint: "Configure Credo in strict mode and add Colony's custom checks\nfrom the elixir pack."
+- id: observability-configured
+  title: "OpenTelemetry pipeline configured"
+  priority: high
+  source_pack: elixir
+  description: "Project exports traces, metrics, and logs via OTLP to the cluster's\nOTEL Collector. Without this, Colony cannot monitor project health\nor investigate production issues."
+  detection:
+    files_contain:
+      "config/runtime.exs": "OTEL_EXPORTER_OTLP_ENDPOINT"
+      "mix.exs": ":opentelemetry"
+  remediation:
+    skill: observability/setup-otel
+    directive_hint: "Configure OpenTelemetry pipeline to export traces and metrics to\nthe OTEL Collector at localhost:4318 via OTLP HTTP."
+- id: test-isolation
+  title: "Async test isolation configured"
+  priority: medium
+  source_pack: elixir
+  description: "All tests use async: true with proper database sandbox isolation.\nThis prevents flaky tests from shared state and enables parallel\ntest execution."
+  detection:
+    files_contain:
+      "test/test_helper.exs": "async"
+  remediation:
+    skill: flaky-test-debug
+    directive_hint: "Configure test suite for async execution with proper sandbox\nisolation. Ensure no tests depend on shared mutable state."
+- id: monit-supervised
+  title: "Process supervised by Monit"
+  priority: high
+  source_pack: deploy-local
+  description: "Application process is supervised by Monit with health checks\nand automatic restart on failure. Required for production stability."
+  detection:
+    manual: true
+  remediation:
+    skill: deploy-service
+    directive_hint: "Register the application as a Monit-supervised service with\nHTTP health check and automatic restart."
+- id: tunnel-configured
+  title: "Cloudflare Tunnel route registered"
+  priority: medium
+  source_pack: deploy-local
+  description: "Application is accessible via a Cloudflare Tunnel subdomain with\nzero-trust authentication. Required for external access."
+  detection:
+    manual: true
+  remediation:
+    skill: register-service
+    directive_hint: "Register a Cloudflare Tunnel route for the application and\nconfigure zero-trust access policies."

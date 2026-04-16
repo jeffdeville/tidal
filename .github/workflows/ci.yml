@@ -1,3 +1,18 @@
+# synced_from_colony: true
+# sync_pack: elixir
+# sync_source: packs/elixir/ci.yml
+# sync_version: d3fefcef
+# Elixir CI Workflow Template
+# Distributed via: packs/elixir/workflows/
+# Applied to: .github/workflows/ci.yml in managed Elixir projects
+#
+# Projects declare Elixir/OTP versions via repository variables or env defaults.
+# Database service is configured for pgvector (used by Colony projects);
+# projects not using pgvector can override the image.
+#
+# Colony-only fast path: PRs that touch only .colony/ files skip compilation
+# and tests entirely — these are metadata changes that don't affect the build.
+
 name: CI
 
 on:
@@ -8,68 +23,130 @@ on:
 
 env:
   MIX_ENV: test
-  ELIXIR_VERSION: "1.19"
-  OTP_VERSION: "28"
+  ELIXIR_VERSION: ${{ vars.ELIXIR_VERSION || '1.19.5' }}
+  OTP_VERSION: ${{ vars.OTP_VERSION || '28' }}
 
 jobs:
   quality:
     name: Quality Checks
     runs-on: ubuntu-latest
+
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-      - name: Set up Elixir
-        uses: erlef/setup-beam@v1
+      - name: Check for code changes
+        id: changes
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            CHANGED=$(git diff --name-only origin/${{ github.base_ref }}...HEAD)
+          else
+            CHANGED=$(git diff --name-only HEAD~1)
+          fi
+          NON_COLONY=$(echo "$CHANGED" | grep -v '^\.colony/' || true)
+          if [ -z "$NON_COLONY" ]; then
+            echo 'colony_only=true' >> $GITHUB_OUTPUT
+          else
+            echo 'colony_only=false' >> $GITHUB_OUTPUT
+          fi
+
+      - uses: erlef/setup-beam@v1
+        if: steps.changes.outputs.colony_only != 'true'
         with:
           elixir-version: ${{ env.ELIXIR_VERSION }}
           otp-version: ${{ env.OTP_VERSION }}
 
-      - name: Cache deps
+      - name: Restore dependencies cache
+        if: steps.changes.outputs.colony_only != 'true'
         uses: actions/cache@v4
         with:
           path: |
             deps
             _build
-          key: ${{ runner.os }}-mix-${{ hashFiles('mix.lock') }}
+          key: ${{ runner.os }}-mix-${{ hashFiles('**/mix.lock') }}
           restore-keys: ${{ runner.os }}-mix-
 
-      - name: Install dependencies
-        run: mix deps.get
+      - run: mix deps.get
+        if: steps.changes.outputs.colony_only != 'true'
+      - run: mix compile --warnings-as-errors
+        if: steps.changes.outputs.colony_only != 'true'
+      - run: mix format --check-formatted
+        if: steps.changes.outputs.colony_only != 'true'
+      - run: mix credo --min-priority=high
+        if: steps.changes.outputs.colony_only != 'true'
 
-      - name: Check formatting
-        run: mix format --check-formatted
-
-      - name: Run Credo
-        run: mix credo --strict
-
-      - name: Compile with warnings as errors
-        run: mix compile --warnings-as-errors
+      - name: Colony-only PR (quality checks skipped)
+        if: steps.changes.outputs.colony_only == 'true'
+        run: echo "PR only touches .colony/ files — skipping compile, format, and credo checks"
 
   test:
     name: Tests
     runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: ${{ vars.POSTGRES_IMAGE || 'pgvector/pgvector:pg16' }}
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: ${{ vars.POSTGRES_DB || 'app_test' }}
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      PGUSER: postgres
+      PGPASSWORD: postgres
+      PGHOST: localhost
+
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-      - name: Set up Elixir
-        uses: erlef/setup-beam@v1
+      - name: Check for code changes
+        id: changes
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            CHANGED=$(git diff --name-only origin/${{ github.base_ref }}...HEAD)
+          else
+            CHANGED=$(git diff --name-only HEAD~1)
+          fi
+          NON_COLONY=$(echo "$CHANGED" | grep -v '^\.colony/' || true)
+          if [ -z "$NON_COLONY" ]; then
+            echo 'colony_only=true' >> $GITHUB_OUTPUT
+          else
+            echo 'colony_only=false' >> $GITHUB_OUTPUT
+          fi
+
+      - uses: erlef/setup-beam@v1
+        if: steps.changes.outputs.colony_only != 'true'
         with:
           elixir-version: ${{ env.ELIXIR_VERSION }}
           otp-version: ${{ env.OTP_VERSION }}
 
-      - name: Cache deps
+      - name: Restore dependencies cache
+        if: steps.changes.outputs.colony_only != 'true'
         uses: actions/cache@v4
         with:
           path: |
             deps
             _build
-          key: ${{ runner.os }}-mix-${{ hashFiles('mix.lock') }}
+          key: ${{ runner.os }}-mix-${{ hashFiles('**/mix.lock') }}
           restore-keys: ${{ runner.os }}-mix-
 
-      - name: Install dependencies
-        run: mix deps.get
+      - run: mix deps.get
+        if: steps.changes.outputs.colony_only != 'true'
+      - run: mix ecto.create && mix ecto.migrate
+        if: steps.changes.outputs.colony_only != 'true'
+      - run: mix test
+        if: steps.changes.outputs.colony_only != 'true'
 
-      - name: Run tests with coverage
-        run: mix coveralls.json --raise
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Colony-only PR (tests skipped)
+        if: steps.changes.outputs.colony_only == 'true'
+        run: echo "PR only touches .colony/ files — skipping test suite"

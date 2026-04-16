@@ -1,0 +1,265 @@
+---
+synced_from_colony: true
+sync_pack: merged
+sync_source: packs/*/conventions/*.yaml
+sync_version: d3fefcef
+---
+archetypes:
+  agent_creation:
+    boundaries:
+      - Do not write a responsibilities list — describe how the expert thinks, not what they do
+      - Do not skip luminary research — it IS the agent
+      - Do not create agents with fewer than 80 lines of body content
+      - "Do not omit required sections: Core Identity, First Principles, Non-Negotiables, Cognitive Load, Colony Integration"
+    default_criteria:
+      - Agent file has valid YAML frontmatter with name, description, model, and expertise tags
+      - Body content is minimum 80 lines with substantive domain expertise
+      - Luminary research performed — 3-5 recognized practitioners identified with principles extracted
+      - First principles are falsifiable, actionable, and sourced from luminary research
+      - Cognitive load management and Colony integration boilerplate sections included
+      - Agent file committed and PR merged
+    deliverable: pr_merged
+    framing: |
+      You are creating or upskilling an agent definition. An agent is NOT a job description or
+      responsibilities list — it's a cognitive profile that shapes how the agent thinks and reasons.
+      Your job is to research the domain's recognized practitioners (luminaries), extract their
+      mental models and first principles, and synthesize them into a deep expert profile. The agent
+      file must include YAML frontmatter (name, description, model, expertise tags), luminary-sourced
+      first principles, non-negotiables, anti-patterns, cognitive load management, and Colony
+      integration boilerplate. Minimum 80 lines of body content. If you can't write 80 lines about
+      what this expert knows and values, you don't understand the domain well enough.
+    skills:
+      - deliver
+      - merge-pr
+      - create-agent
+  bug_fix:
+    boundaries:
+      - Do not refactor surrounding code unless directly required by the fix
+      - Do not add features or enhancements alongside the bug fix
+      - Do not modify unrelated test files
+      - Verify the fix does not suppress telemetry events or break trace context propagation
+    default_criteria:
+      - Regression test added that fails without the fix
+      - Root cause addressed, not just symptoms
+      - No unrelated changes bundled in
+      - Tests pass
+      - "Tests use async: true with per-test process isolation"
+    deliverable: pr_merged
+    framing: |
+      You are fixing a specific defect. Start by understanding the root cause — not just the
+      symptom. Write a regression test that fails without your fix before writing the fix itself.
+      Keep the change minimal and focused on the defect. Do not bundle unrelated improvements.
+    skills:
+      - deliver
+      - merge-pr
+  config_migration:
+    boundaries:
+      - Do not edit manifest.json — it is not used for tracking migration state
+      - Do not modify files outside the migration's artifacts list
+      - Do not skip verification steps defined in the migration instructions
+    default_criteria:
+      - Migration artifacts created/modified per the migration's artifacts/0 list
+      - Called record_config_migration tool for each applied migration ID
+      - All created/modified files committed and included in the PR
+      - All created/modified files pass format and content validation
+    deliverable: pr_merged
+    framing: |
+      You are executing a config migration that updates project configuration files. Follow the
+      migration's instructions precisely — the artifacts list defines exactly which files to
+      create or modify. After committing artifacts, call the `record_config_migration` MCP tool
+      to record each migration as applied. Do not edit manifest.json manually.
+    skills:
+      - deliver
+      - merge-pr
+      - apply-config-migration
+  documentation:
+    boundaries:
+      - Do not document features that do not exist yet
+      - Do not change code to match documentation — update documentation to match code
+      - Do not introduce new documentation formats without following existing patterns
+    default_criteria:
+      - Accurate relative to current implementation
+      - Follows existing documentation patterns in the codebase
+      - No stale references to removed modules or changed APIs
+    deliverable: pr_merged
+    framing: |
+      You are updating documentation to reflect the current state of the codebase. Every claim
+      in the documentation must be verifiable against the actual implementation. Remove stale
+      references and ensure consistency with existing documentation patterns.
+    skills:
+      - deliver
+      - merge-pr
+  implementation:
+    boundaries:
+      - Do not modify existing APIs without explicit instruction
+      - Do not refactor code outside the scope of your task
+      - Do not skip tests to meet acceptance criteria faster
+    default_criteria:
+      - Tests pass
+      - Code formatted
+      - OTel spans wrap operations that cross service boundaries or represent significant work units
+      - "Tests use async: true with per-test process isolation"
+      - No Process.sleep in tests — use PubSub subscribe + assert_receive
+      - No Application.put_env in async tests — use per-test context isolation
+      - Code formatted with mix format
+      - New execution paths emit telemetry events
+    deliverable: pr_merged
+    framing: |
+      You are implementing a new feature or enhancement. Your job is to write production-quality
+      code with tests, following the project's patterns and conventions. You own the full cycle:
+      implementation, testing, PR creation, and merge. If you encounter architectural decisions
+      outside your scope, escalate rather than making assumptions.
+    skills:
+      - deliver
+      - merge-pr
+  migration:
+    boundaries:
+      - Do not use varchar for unbounded text fields
+      - Do not make irreversible schema changes without explicit justification
+    default_criteria:
+      - Migration is reversible where possible
+      - Uses text type for unbounded string columns, not varchar
+      - Existing tests pass after migration
+    deliverable: pr_merged
+    framing: |
+      You are creating or modifying database schemas. Place migrations in the correct directory
+      based on whether the table is per-project or global. Use text type for unbounded string
+      columns. Ensure migrations are reversible where possible.
+    skills:
+      - deliver
+      - merge-pr
+  refactor:
+    boundaries:
+      - Do not change observable behavior or public API contracts
+      - Do not bundle feature work with refactoring
+      - Do not modify tests unless they test internal implementation details that changed
+    default_criteria:
+      - All existing tests pass without modification (behavior unchanged)
+      - No new test failures introduced
+      - Cognitive load reduced (clearer naming, simpler control flow, better abstractions)
+      - No new public API surface unless justified
+    deliverable: pr_merged
+    framing: |
+      You are restructuring existing code to improve clarity, reduce complexity, or extract
+      better abstractions — without changing observable behavior. Every existing test must continue
+      to pass unmodified. Your refactoring should make the codebase easier to understand and
+      maintain for the next person who reads it.
+    skills:
+      - deliver
+      - merge-pr
+  research:
+    boundaries:
+      - Do not write production code or tests — produce findings only
+      - Do not make architectural decisions — present options with tradeoffs
+      - Do not create follow-up directives without documenting the reasoning
+    default_criteria:
+      - Findings documented with specific evidence (code references, data, quotes)
+      - Options presented with tradeoffs when decisions are needed
+      - Durable knowledge recorded in Colony memory or .colony/ documents
+      - Clear recommendation or next steps proposed
+    deliverable: validated
+    framing: |
+      You are investigating a question, exploring options, or gathering information to inform a
+      decision. Your deliverable is findings — not code, not a PR. Read code, search the knowledge
+      base, interview stakeholders, and synthesize what you learn into clear, actionable observations.
+      Record durable findings as Colony memories or .colony/ documents. Flag decisions that need
+      owner input rather than making them yourself.
+    skills:
+
+  skill_creation:
+    boundaries:
+      - Do not write cognitive profiles — skills are procedures, not expertise descriptions
+      - Do not embed large static content — use dynamic context injection where possible
+      - Do not exceed ~5k tokens — skills compete for context window space
+      - Do not write vague descriptions — they determine auto-discovery accuracy
+    default_criteria:
+      - Skill file has valid YAML frontmatter with name and description
+      - Description is specific and action-oriented for auto-discovery
+      - Procedure is step-by-step, executable by any agent
+      - Trigger conditions (When to Use) are clearly defined
+      - Skill file committed and PR merged
+    deliverable: pr_merged
+    framing: |
+      You are creating or updating a skill definition. A skill is a procedural document — clear
+      step-by-step instructions that any agent can follow to accomplish a specific task. Skills
+      define WHAT to do and WHEN to do it. They are NOT cognitive profiles (that's agents). Write
+      skills as executable procedures with explicit trigger conditions, ordered steps, and expected
+      outputs. Include YAML frontmatter with name and description. The description is critical —
+      it determines whether Claude Code auto-discovers and invokes the skill.
+    skills:
+      - deliver
+      - merge-pr
+  sweep:
+    boundaries:
+      - Do not fix issues directly — create directives for them
+      - Do not create duplicate directives for issues already being addressed
+      - Do not delete files unless they are empty stubs with no substantive content
+    default_criteria:
+      - Evidence captures what was scanned, what was found, and what directives were created
+      - "Idempotency verified: no duplicate directives created for issues already being addressed"
+      - "Concern files processed: empty stubs deleted directly; substantive concerns produce directives with deletion as an acceptance criterion"
+      - No-op documented explicitly if nothing was wrong ("Scanned X — all healthy")
+    deliverable: validated
+    framing: |
+      You are performing a scheduled health check. Scan the designated domain for problems,
+      staleness, or inconsistencies. Create follow-up directives for substantive issues found.
+      If everything is healthy, document that explicitly. Always check for existing active
+      directives before creating duplicates.
+    skills:
+
+  validation:
+    boundaries:
+      - Do not modify production code — only observe and verify
+      - Do not rely solely on unit tests — verify actual system behavior
+      - Do not skip failure mode testing
+    default_criteria:
+      - Evidence captured with specific observations and outputs
+      - Real or realistic data used (not just mock/stub scenarios)
+      - Failure modes checked, not just happy path
+      - Environment state documented (versions, config)
+    deliverable: validated
+    framing: |
+      You are verifying that a feature or system works correctly end-to-end. Use real or
+      realistic data and test both happy paths and failure modes. Capture specific observations
+      and outputs as evidence. Document the environment state for reproducibility.
+    skills:
+
+  verification:
+    boundaries:
+      - Do not fix failing tests — only report results
+      - Do not modify source code
+      - Do not skip any test suites or quality checks
+    default_criteria:
+      - Evidence documented with pass/fail summary and any relevant output
+      - All test suites run to completion (not stopped on first failure)
+      - Warnings-as-errors compilation checked
+    deliverable: verification_passed
+    framing: |
+      You are running quality gate checks to verify the codebase meets standards. Execute all
+      test suites to completion, check compilation with warnings-as-errors, and verify formatting.
+      Report results with specific pass/fail details and any relevant output.
+    skills:
+
+directive_criteria:
+  Event-Based Sync:
+    - Tests use PubSub subscribe + assert_receive with adequate timeouts (2000ms minimum)
+    - Never use Process.sleep for waiting on async operations
+    - "Use :sys.get_state to synchronize with GenServers before asserting side effects"
+    - refute_receive uses 0 timeout after GenServer synchronization
+  Observability:
+    - "New GenServers or execution paths should emit :telemetry events"
+    - New long-running operations should be wrapped in OTel spans
+    - "Do not introduce direct logging for operational metrics — use :telemetry events consumed by existing handlers"
+  Test Isolation:
+    - All async tests use per-test process isolation
+    - No Application.put_env in async tests — use per-test context isolation
+    - No Process.sleep for synchronization — use PubSub subscribe + assert_receive
+last_updated: 2026-03-31
+layer_order: 1
+pack: elixir
+type: pack-conventions
+workflow_patterns:
+  - Implementation tasks should always include tests covering both valid and invalid state transitions
+  - Refactor tasks must not be bundled with feature work — keep them in separate PRs for clean review
+  - Bug fix PRs should include a regression test that demonstrates the failure before the fix
+  - Migration tasks should verify placement with mix validate_migrations

@@ -1,42 +1,28 @@
-# EXAMPLE USAGE:
-#
-#   Refer for explanation to following link:
-#   https://lefthook.dev/configuration/
-#
-# pre-push:
-#   jobs:
-#     - name: packages audit
-#       tags:
-#         - frontend
-#         - security
-#       run: yarn audit
-#
-#     - name: gems audit
-#       tags:
-#         - backend
-#         - security
-#       run: bundle audit
-#
-# pre-commit:
-#   parallel: true
-#   jobs:
-#     - run: yarn eslint {staged_files}
-#       glob: "*.{js,ts,jsx,tsx}"
-#
-#     - name: rubocop
-#       glob: "*.rb"
-#       exclude:
-#         - config/application.rb
-#         - config/routes.rb
-#       run: bundle exec rubocop --force-exclusion {all_files}
-#
-#     - name: govet
-#       files: git ls-files -m
-#       glob: "*.go"
-#       run: go vet {files}
-#
-#     - script: "hello.js"
-#       runner: node
-#
-#     - script: "hello.go"
-#       runner: go run
+# synced_from_colony: true
+# sync_pack: elixir
+# sync_source: packs/elixir/lefthook.yml
+# sync_version: d3fefcef
+min_version: 1.11.1
+
+pre-commit:
+  parallel: true
+  commands:
+    compile:
+      run: mix compile --warnings-as-errors
+    format:
+      glob: "*.{ex,exs,heex}"
+      run: mix format {staged_files}
+      stage_fixed: true
+
+pre-push:
+  parallel: false
+  commands:
+    compile:
+      run: mix compile --warnings-as-errors
+    format-check:
+      run: mix format --check-formatted
+    credo:
+      run: mix credo --min-priority=high
+    coverage-ratchet:
+      run: .lefthook/pre-push/coverage-ratchet.sh
+      tags: coverage

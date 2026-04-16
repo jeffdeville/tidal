@@ -1,0 +1,40 @@
+ci-pipeline:
+  status: unmet
+  met_at: null
+  met_by: null
+  skipped_reason: null
+credo-configured:
+  status: unmet
+  met_at: null
+  met_by: null
+  skipped_reason: null
+health-endpoint:
+  status: unmet
+  met_at: null
+  met_by: null
+  skipped_reason: null
+monit-supervised:
+  status: unmet
+  met_at: null
+  met_by: null
+  skipped_reason: null
+observability-configured:
+  status: unmet
+  met_at: null
+  met_by: null
+  skipped_reason: null
+secret-management:
+  status: unmet
+  met_at: null
+  met_by: null
+  skipped_reason: null
+test-isolation:
+  status: unmet
+  met_at: null
+  met_by: null
+  skipped_reason: null
+tunnel-configured:
+  status: unmet
+  met_at: null
+  met_by: null
+  skipped_reason: null

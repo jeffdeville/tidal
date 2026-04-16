@@ -1,0 +1,90 @@
+# synced_from_colony: true
+# sync_pack: universal
+# sync_source: packs/universal/sync-guard.yml
+# sync_version: d3fefcef
+# Colony Sync Guard
+# Prevents modification of files synced from Colony packs.
+# Synced files are owned by Colony — edits must happen in the source pack,
+# not in the project's local copy. This workflow discovers synced files by
+# marker (not by path), so it works regardless of project directory structure.
+#
+# Distributed via: packs/universal/workflows/
+# Applied to: .github/workflows/colony-sync-guard.yml in managed projects
+
+name: Colony Sync Guard
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  sync-guard:
+    name: Check synced files unchanged
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Find modified synced files
+        id: check
+        run: |
+          # Get files changed in this PR
+          CHANGED_FILES=$(git diff --name-only origin/${{ github.base_ref }}...HEAD)
+
+          if [ -z "$CHANGED_FILES" ]; then
+            echo "No files changed."
+            echo "violated=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          VIOLATIONS=""
+
+          while IFS= read -r file; do
+            # Skip deleted files
+            [ ! -f "$file" ] && continue
+
+            # Check for synced-from-colony marker in the first 20 lines
+            # Supports both YAML frontmatter and comment-style markers
+            if head -20 "$file" | grep -q 'synced_from_colony: *true'; then
+              VIOLATIONS="${VIOLATIONS}${file}\n"
+            fi
+          done <<< "$CHANGED_FILES"
+
+          if [ -n "$VIOLATIONS" ]; then
+            echo "violated=true" >> "$GITHUB_OUTPUT"
+            # Write violations to a file for the next step
+            printf '%b' "$VIOLATIONS" > /tmp/sync-violations.txt
+          else
+            echo "violated=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Report violations
+        if: steps.check.outputs.violated == 'true'
+        run: |
+          echo "::error::Colony-synced files were modified in this PR."
+          echo ""
+          echo "The following files are managed by Colony and must not be edited directly:"
+          echo ""
+          while IFS= read -r file; do
+            [ -z "$file" ] && continue
+            # Extract the source pack info if available
+            SOURCE=$(head -20 "$file" | grep 'sync_source:' | sed 's/.*sync_source: *//' || true)
+            if [ -n "$SOURCE" ]; then
+              echo "  - $file (source: $SOURCE)"
+            else
+              echo "  - $file"
+            fi
+          done < /tmp/sync-violations.txt
+          echo ""
+          echo "To change these files, edit the source in Colony's packs/ directory."
+          echo "Changes will be distributed to this project on the next sync."
+          echo ""
+          echo "If you need to urgently override a synced file, coordinate with the"
+          echo "Colony project owner to update the source pack."
+          exit 1
+
+      - name: Sync guard passed
+        if: steps.check.outputs.violated != 'true'
+        run: echo "No synced files were modified. ✓"

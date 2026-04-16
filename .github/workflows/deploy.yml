@@ -1,0 +1,92 @@
+# synced_from_colony: true
+# sync_pack: deploy-local
+# sync_source: packs/deploy-local/deploy.yml
+# sync_version: d3fefcef
+# Local Deployment Workflow Template
+# Distributed via: packs/deploy-local/workflows/
+# Applied to: .github/workflows/deploy.yml in projects using local deployment
+#
+# Triggers a deployment to the local Monit + Cloudflare Tunnel infrastructure
+# when changes are pushed to main. Requires a self-hosted runner on the
+# deployment machine with access to the Monit and Cloudflare Tunnel configs.
+#
+# Required repository secrets:
+#   DEPLOY_SSH_KEY — SSH key for the deployment target (if remote)
+#
+# Required repository variables:
+#   DEPLOY_HOST — hostname or IP of the deployment target (default: localhost)
+#   DEPLOY_PATH — absolute path to the project on the deployment target
+#   SERVICE_NAME — Monit service name to restart
+
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  DEPLOY_HOST: ${{ vars.DEPLOY_HOST || 'localhost' }}
+  DEPLOY_PATH: ${{ vars.DEPLOY_PATH }}
+  SERVICE_NAME: ${{ vars.SERVICE_NAME }}
+
+jobs:
+  deploy:
+    name: Deploy to local
+    runs-on: self-hosted
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate configuration
+        run: |
+          if [ -z "$DEPLOY_PATH" ]; then
+            echo "::error::DEPLOY_PATH repository variable is not set"
+            exit 1
+          fi
+          if [ -z "$SERVICE_NAME" ]; then
+            echo "::error::SERVICE_NAME repository variable is not set"
+            exit 1
+          fi
+
+      - name: Pull latest changes
+        run: |
+          cd "$DEPLOY_PATH"
+          git fetch origin main
+          git reset --hard origin/main
+
+      - name: Install dependencies and build
+        run: |
+          cd "$DEPLOY_PATH"
+          mix deps.get --only prod
+          MIX_ENV=prod mix compile
+          MIX_ENV=prod mix assets.deploy 2>/dev/null || true
+
+      - name: Run migrations
+        run: |
+          cd "$DEPLOY_PATH"
+          MIX_ENV=prod mix ecto.migrate
+
+      - name: Restart service
+        run: |
+          sudo monit restart "$SERVICE_NAME"
+          # Wait for service to come up
+          sleep 5
+          sudo monit status "$SERVICE_NAME" | grep -q "running" || {
+            echo "::error::Service $SERVICE_NAME failed to start"
+            exit 1
+          }
+
+      - name: Health check
+        run: |
+          HEALTH_URL="${HEALTH_URL:-http://localhost:${PORT:-4000}/health}"
+          for i in 1 2 3 4 5; do
+            if curl -sf "$HEALTH_URL" > /dev/null 2>&1; then
+              echo "Health check passed"
+              exit 0
+            fi
+            echo "Attempt $i/5 — waiting..."
+            sleep 3
+          done
+          echo "::error::Health check failed after 5 attempts"
+          exit 1
