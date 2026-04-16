@@ -23,8 +23,8 @@ defmodule Tidal.Plug do
 
     * `Mcp-Session-Id` — required for established sessions (POST with existing session,
       GET, DELETE). Generated automatically for new sessions on the first POST (initialize).
-    * `Accept` — must include both `application/json` and `text/event-stream` for
-      POST and GET requests per the MCP spec.
+    * `Accept` — must include `application/json` for POST requests and
+      `text/event-stream` for GET requests. `*/*` is accepted for either.
     * `Content-Type` — must be `application/json` for POST requests.
   """
 
@@ -270,13 +270,23 @@ defmodule Tidal.Plug do
     has_sse = String.contains?(accept, "text/event-stream")
     has_wildcard = String.contains?(accept, "*/*")
 
-    if (has_json and has_sse) or has_wildcard do
-      :ok
-    else
-      {:error, 406,
-       %{"error" => "Accept header must include both application/json and text/event-stream"}}
+    case conn.method do
+      "GET" when has_sse or has_wildcard ->
+        :ok
+
+      "POST" when has_json or has_wildcard ->
+        :ok
+
+      method when method in ["GET", "POST"] ->
+        {:error, 406, %{"error" => accept_error_message(method)}}
+
+      _other ->
+        :ok
     end
   end
+
+  defp accept_error_message("GET"), do: "Accept header must include text/event-stream"
+  defp accept_error_message("POST"), do: "Accept header must include application/json"
 
   defp validate_content_type(conn) do
     content_type = get_req_header(conn, "content-type") |> Enum.join("")
