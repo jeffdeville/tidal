@@ -5,10 +5,13 @@ defmodule Tidal.MixProject do
     [
       app: :tidal,
       version: "0.1.0",
+      description: description(),
       elixir: "~> 1.19",
       elixirc_paths: elixirc_paths(Mix.env()),
       start_permanent: Mix.env() == :prod,
       deps: deps(),
+      docs: docs(),
+      package: package(),
       aliases: aliases(),
       test_coverage: [
         tool: ExCoveralls,
@@ -45,9 +48,11 @@ defmodule Tidal.MixProject do
       {:bandit, "~> 1.6"},
       {:jason, "~> 1.4"},
       {:nimble_options, "~> 1.1"},
+      {:arena, git: "https://github.com/jeffdeville/arena.git", ref: "37cbe7d565e6fcb0ab2717739d7d7826e0cbffaf"},
 
       # Dev/Test
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
+      {:ex_doc, "~> 0.40.3", only: :dev, runtime: false},
       {:excoveralls, "~> 0.18", only: :test}
     ]
   end
@@ -62,6 +67,47 @@ defmodule Tidal.MixProject do
         "test"
       ],
       "ci.test": ["coveralls.json --raise"]
+    ]
+  end
+
+  defp description do
+    "Build stateless Model Context Protocol servers in Elixir over Streamable HTTP."
+  end
+
+  defp package do
+    [
+      files: ~w(lib .formatter.exs mix.exs README.md),
+      links: %{
+        "GitHub" => "https://github.com/jeffdeville/tidal"
+      }
+    ]
+  end
+
+  defp docs do
+    [
+      main: "readme",
+      extras: ["README.md"],
+      groups_for_modules: [
+        "Server API": [
+          Tidal,
+          Tidal.Plug,
+          Tidal.Server,
+          Tidal.RequestContext,
+          Tidal.Tool,
+          Tidal.Tool.Middleware,
+          Tidal.Tool.Operation,
+          Tidal.Resource
+        ],
+        "Application State": [
+          Tidal.StateHandle,
+          Tidal.StateHandle.Resolver,
+          Tidal.StateHandle.Local,
+          Tidal.RequestState,
+          Tidal.Subscriptions,
+          Tidal.SubscriptionBus,
+          Tidal.Subscriptions.Local
+        ]
+      ]
     ]
   end
 end

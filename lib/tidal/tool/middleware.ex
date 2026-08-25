@@ -3,7 +3,7 @@ defmodule Tidal.Tool.Middleware do
   Behaviour for pluggable tool dispatch middleware.
 
   Middleware wraps tool invocations with before/after logic. Each middleware
-  receives the tool name, arguments, session state, and a `next` function
+  receives the tool name, arguments, request context, and a `next` function
   that continues the chain.
 
   ## Example
@@ -12,11 +12,11 @@ defmodule Tidal.Tool.Middleware do
         @behaviour Tidal.Tool.Middleware
 
         @impl true
-        def call(tool_name, arguments, session, next) do
+        def call(tool_name, arguments, context, next) do
           Logger.info("Calling tool: \#{tool_name}")
-          {:ok, result, session} = next.(tool_name, arguments, session)
+          {:ok, result, context} = next.(tool_name, arguments, context)
           Logger.info("Tool completed: \#{tool_name}")
-          {:ok, result, session}
+          {:ok, result, context}
         end
       end
 
@@ -24,32 +24,32 @@ defmodule Tidal.Tool.Middleware do
 
   Middleware can skip downstream processing by not calling `next`:
 
-      def call(_tool_name, _arguments, session, _next) do
+      def call(_tool_name, _arguments, _context, _next) do
         {:error, "access denied"}
       end
 
   ## Return Types
 
   Middleware must return one of:
-  - `{:ok, %ToolResult{}, session}` — success (possibly modified result/session)
+  - `{:ok, result, context}` — success (possibly modified result/context)
   - `{:error, reason}` — halt the chain with an error
   """
 
-  alias Tidal.Protocol.ToolResult
+  alias Tidal.Tool
 
-  @type next :: (String.t(), map(), map() -> {:ok, ToolResult.t(), map()} | {:error, String.t()})
+  @type next :: (String.t(), map(), map() -> {:ok, Tool.result(), map()} | {:error, String.t()})
 
   @doc """
   Called for each tool invocation in the middleware chain.
 
-  Invoke `next.(tool_name, arguments, session)` to continue the chain.
-  Modify arguments or session before calling next. Modify results after.
+  Invoke `next.(tool_name, arguments, context)` to continue the chain.
+  Modify arguments or context before calling next. Modify results after.
   Return `{:error, reason}` to short-circuit.
   """
   @callback call(
               tool_name :: String.t(),
               arguments :: map(),
-              session :: map(),
+              context :: map(),
               next :: next()
-            ) :: {:ok, ToolResult.t(), map()} | {:error, String.t()}
+            ) :: {:ok, Tool.result(), map()} | {:error, String.t()}
 end

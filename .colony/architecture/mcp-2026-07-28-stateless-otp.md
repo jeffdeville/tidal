@@ -1,7 +1,7 @@
 # MCP 2026-07-28: Stateless Protocol, Stateful OTP
 
-**Status:** Recommended architecture
-**Date:** 2026-08-24
+**Status:** Implemented for the modern core; durable Tasks extension deferred
+**Date:** 2026-08-25
 **Scope:** Tidal's Streamable HTTP server architecture
 
 ## Decision
@@ -26,6 +26,16 @@ This remains a strong fit for Elixir. It is also a more precise fit than the
 current per-session design because unrelated calls no longer serialize through
 one client process, while calls that mutate the same explicit state handle can
 still be serialized by one actor.
+
+The implementation now follows this boundary. `Tidal.Server` is immutable,
+`Tidal.RequestContext` is rebuilt per request, modern dispatch bypasses
+`Tidal.Session`, local explicit handles use Arena-aware actors, MRTR ends the
+request with signed request state, and `subscriptions/listen` owns its response
+stream. The legacy session modules remain only behind the version router.
+
+The Tasks extension remains intentionally unimplemented. Tidal does not yet
+have a durable task-store implementation, and advertising tasks backed only by
+a local process would violate the recovery semantics described below.
 
 ## What "stateless" means
 
@@ -280,9 +290,10 @@ Use a clean protocol-version boundary at the transport edge.
    dependence on `Tidal.Session`, the session Registry, and reconnect ETS.
 4. Implement request-scoped SSE, cancellation, and `subscriptions/listen`.
 5. Implement MRTR with protected `requestState`.
-6. Add the Tasks extension only with a durable store contract.
-7. Add optional handle-actor helpers after at least two real stateful tool
-   integrations establish the common API.
+6. Add the Tasks extension only with a durable store contract. **Pending.**
+7. Validate the handle-resolver API against real clustered/durable adapters.
+   **The local Arena-aware implementation is complete; multi-node adapters are
+   application supplied.**
 8. Retire the legacy adapter when active clients no longer require it.
 
 Each step is independently testable. In particular, integration tests should

@@ -12,7 +12,7 @@ defmodule Tidal.Tool.Pipeline do
         [RoleFilter, ParamInjector, Logger],
         "my_tool",
         %{"arg" => "value"},
-        session_state,
+        request_context,
         &actual_tool_handler/3
       )
 
@@ -20,10 +20,10 @@ defmodule Tidal.Tool.Pipeline do
   1. RoleFilter.call → 2. ParamInjector.call → 3. Logger.call → 4. handler
   """
 
-  alias Tidal.Protocol.ToolResult
+  alias Tidal.Tool
 
   @type handler :: (String.t(), map(), map() ->
-                      {:ok, ToolResult.t(), map()} | {:error, String.t()})
+                      {:ok, Tool.result(), map()} | {:error, String.t()})
 
   @doc """
   Runs the middleware chain and handler for a tool invocation.
@@ -33,11 +33,11 @@ defmodule Tidal.Tool.Pipeline do
   - `middleware` — list of modules implementing `Tidal.Tool.Middleware`
   - `tool_name` — the MCP tool name being called
   - `arguments` — the tool arguments map
-  - `session` — the current session state
-  - `handler` — the innermost function: `fn tool_name, arguments, session -> result end`
+  - `context` — a modern request context or legacy session state
+  - `handler` — the innermost function: `fn tool_name, arguments, context -> result end`
   """
   @spec call([module()], String.t(), map(), map(), handler()) ::
-          {:ok, ToolResult.t(), map()} | {:error, String.t()}
+          {:ok, Tool.result(), map()} | {:error, String.t()}
   def call([], tool_name, arguments, session, handler) do
     handler.(tool_name, arguments, session)
   end

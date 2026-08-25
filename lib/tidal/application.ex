@@ -8,8 +8,11 @@ defmodule Tidal.Application do
     :ets.new(:tidal_session_cache, [:set, :public, :named_table, read_concurrency: true])
 
     children = [
+      {Registry, keys: :unique, name: :arena_registry},
       {Registry, keys: :unique, name: Tidal.SessionRegistry},
-      {DynamicSupervisor, strategy: :one_for_one, name: Tidal.SessionSupervisor}
+      {Registry, keys: :duplicate, name: Tidal.SubscriptionRegistry},
+      {DynamicSupervisor, strategy: :one_for_one, name: Tidal.SessionSupervisor},
+      {DynamicSupervisor, strategy: :one_for_one, name: Tidal.StateHandle.Local.Supervisor}
     ]
 
     opts = [strategy: :one_for_one, name: Tidal.Supervisor]

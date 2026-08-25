@@ -41,8 +41,9 @@ defmodule Tidal.Tool.Operation do
       @callback execute(op_name :: atom(), params :: map(), session :: map()) ::
                   {:ok, map()} | {:error, atom()} | {:error, atom(), map()}
 
-  The macro auto-generates `Tidal.Tool.define_tools/0` and `handle_tool_call/3`
-  from your `defop` declarations and `execute/3` implementation.
+  The macro auto-generates `c:Tidal.Tool.define_tools/0` and
+  `c:Tidal.Tool.handle_tool_call/3` from your `defop` declarations and
+  `execute/3` implementation.
   """
 
   alias Tidal.Tool.{SchemaBuilder, ErrorSpec}
