@@ -10,10 +10,22 @@ defmodule Tidal.StateHandle.Resolver do
   @type handle :: String.t()
   @type auth_context :: term()
 
+  @doc "Creates state and returns a new opaque public handle."
   @callback create(initial_state :: term(), auth_context(), keyword()) ::
               {:ok, handle()} | {:error, term()}
+
+  @doc "Authorizes the caller and fetches the state identified by a handle."
   @callback fetch(handle(), auth_context(), keyword()) :: {:ok, term()} | {:error, term()}
-  @callback transact(handle(), auth_context(), (term() -> term()), keyword()) ::
+
+  @doc "Authorizes the caller and atomically transforms the identified state."
+  @callback transact(
+              handle(),
+              auth_context(),
+              (term() -> {:ok, term(), term()} | {:error, term()}),
+              keyword()
+            ) ::
               {:ok, term()} | {:error, term()}
+
+  @doc "Authorizes the caller and permanently removes the identified state."
   @callback destroy(handle(), auth_context(), keyword()) :: :ok | {:error, term()}
 end

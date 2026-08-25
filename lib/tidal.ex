@@ -1,8 +1,13 @@
 defmodule Tidal do
   @moduledoc """
-  Tidal is an MCP (Model Context Protocol) server library for Elixir.
+  Builds Model Context Protocol servers in Elixir.
 
-  It provides an idiomatic Elixir API for defining MCP tools and resources,
-  served over Streamable HTTP with per-client session isolation.
+  Define tools with `Tidal.Tool`, resources with `Tidal.Resource`, and mount
+  `Tidal.Plug` in a Phoenix router or Bandit server. MCP `2026-07-28` requests
+  are independent and receive a fresh `Tidal.RequestContext`; applications that
+  need continuity can use explicit `Tidal.StateHandle` values or signed
+  `Tidal.RequestState` continuations without relying on load-balancer affinity.
+
+  See the project README for a complete server and deployment examples.
   """
 end

@@ -68,9 +68,11 @@ defmodule Tidal.Resource do
   """
 
   alias Tidal.Protocol.{BlobResourceContents, Resource, ResourceTemplate, TextResourceContents}
+  alias Tidal.RequestContext
 
   @type resource_definition :: Resource.t() | ResourceTemplate.t()
   @type resource_content :: TextResourceContents.t() | BlobResourceContents.t()
+  @type context :: RequestContext.t() | map()
 
   @doc """
   Returns a list of resource and/or resource template definitions.
@@ -83,7 +85,7 @@ defmodule Tidal.Resource do
   Returns `{:ok, contents}` with a list of `TextResourceContents` or
   `BlobResourceContents`, or `{:error, reason}`.
   """
-  @callback handle_read_resource(uri :: String.t(), context :: map()) ::
+  @callback handle_read_resource(uri :: String.t(), context()) ::
               {:ok, [resource_content()]} | {:error, term()}
 
   @doc """
@@ -91,7 +93,7 @@ defmodule Tidal.Resource do
 
   Return `:ok` to accept or `{:error, reason}` to reject.
   """
-  @callback handle_subscribe(uri :: String.t(), context :: map()) :: :ok | {:error, term()}
+  @callback handle_subscribe(uri :: String.t(), context()) :: :ok | {:error, term()}
 
   @optional_callbacks [handle_subscribe: 2]
 

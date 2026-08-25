@@ -39,8 +39,10 @@ defmodule Tidal.Tool do
   """
 
   alias Tidal.Protocol.{InputRequiredResult, Tool, ToolResult}
+  alias Tidal.RequestContext
 
   @type result :: ToolResult.t() | InputRequiredResult.t()
+  @type context :: RequestContext.t() | map()
 
   @doc """
   Returns a list of tool definitions provided by this module.
@@ -55,7 +57,7 @@ defmodule Tidal.Tool do
   Receives the tool name, validated arguments, and either a modern request
   context or legacy session state. Returns a complete or input-required result.
   """
-  @callback handle_tool_call(name :: String.t(), arguments :: map(), context :: map()) ::
+  @callback handle_tool_call(name :: String.t(), arguments :: map(), context()) ::
               {:ok, result()} | {:error, String.t()}
 
   @doc """

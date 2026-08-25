@@ -12,19 +12,33 @@ defmodule Tidal.Plug do
 
   ## Usage
 
-  Mount this plug in your endpoint or router:
+  Mount this plug in a Phoenix router:
 
-      # In a Plug.Router
-      forward "/mcp", to: Tidal.Plug
+      forward "/mcp", Tidal.Plug,
+        tool_modules: [MyApp.Tools],
+        resource_handlers: [MyApp.Resources],
+        server_info: %{name: "my-app", version: "1.0.0"}
 
-      # Or start directly with Bandit
-      Bandit.start_link(plug: Tidal.Plug, port: 4000)
+  Or start it directly with Bandit:
+
+      Bandit.start_link(
+        plug: {Tidal.Plug, [tool_modules: [MyApp.Tools]]},
+        ip: :loopback,
+        port: 4000
+      )
 
   ## Modern options
 
+    * `:tool_modules` — modules implementing `Tidal.Tool`.
+    * `:resource_handlers` — modules implementing `Tidal.Resource`.
     * `:server_info` — server `name` and `version` metadata.
+    * `:instructions` — optional agent-facing server instructions.
+    * `:capabilities` — values merged over capabilities derived from the
+      configured tools and resources.
+    * `:middleware` — `Tidal.Tool.Middleware` modules, in execution order.
     * `:context_builder` — arity-two callback rebuilding request assigns from
       the current connection and metadata.
+    * `:init_assigns` — constant assigns used when no context builder is set.
     * `:allowed_origins` — explicit HTTP(S) browser origins. The default empty
       list rejects every request that carries `Origin`.
     * `:cache` — `ttl_ms` and `scope` (`:private` or `:public`).
@@ -55,6 +69,9 @@ defmodule Tidal.Plug do
   @doc """
   Builds immutable modern server configuration and preserves the same options
   for legacy session creation.
+
+  See `Tidal.Server.new!/1` for the complete option and validation contract.
+  Invalid catalogs and configuration raise during Plug initialization.
   """
   @impl true
   def init(opts) do

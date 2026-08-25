@@ -3,8 +3,12 @@ defmodule Tidal.RequestState do
   Signs and verifies self-contained state for multi-round-trip requests.
 
   Request state is integrity-protected, expires, and is bound to the current
-  authorization context. The payload is JSON rather than an Erlang term so a
-  verified client token is never deserialized into executable VM data.
+  authorization context and original request fingerprint. The payload is JSON
+  rather than an Erlang term so a verified client token is never deserialized
+  into executable VM data.
+
+  Configure the same `:request_state_secret` on every node that may receive a
+  retry. Signing requires a secret of at least 32 bytes.
   """
 
   alias Plug.Crypto.MessageVerifier
@@ -12,7 +16,21 @@ defmodule Tidal.RequestState do
 
   @default_expiry_ms :timer.minutes(5)
 
-  @doc "Signs JSON-compatible continuation data for a later retry."
+  @doc """
+  Signs JSON-compatible continuation data for a later retry.
+
+  Pass `:expires_in_ms` to replace the five-minute default. Return the token in
+  a `Tidal.Protocol.InputRequiredResult`; on retry, pass the current context and
+  `context.request_state` to `verify/2`.
+
+      {:ok, token} =
+        Tidal.RequestState.sign(context, %{"step" => "confirm"},
+          expires_in_ms: 120_000
+        )
+
+  Returns `{:error, :request_state_secret_not_configured}` when the server has
+  no suitable secret.
+  """
   @spec sign(RequestContext.t(), term(), keyword()) ::
           {:ok, String.t()} | {:error, :request_state_secret_not_configured}
   def sign(%RequestContext{} = context, data, opts \\ []) do
@@ -28,7 +46,21 @@ defmodule Tidal.RequestState do
     end
   end
 
-  @doc "Verifies a continuation and returns the embedded application data."
+  @doc """
+  Verifies a continuation and returns the embedded application data.
+
+  Verification checks the signature, expiry, current authorization context,
+  and current request fingerprint. A token is therefore not transferable to a
+  different principal or a materially different retry.
+
+      with {:ok, %{"step" => "confirm"}} <-
+             Tidal.RequestState.verify(context, context.request_state) do
+        continue_with(context.input_responses)
+      end
+
+  The error atom identifies the failed check and is safe to handle without
+  inspecting the token payload.
+  """
   @spec verify(RequestContext.t(), term()) ::
           {:ok, term()}
           | {:error,

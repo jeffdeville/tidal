@@ -1,10 +1,5 @@
 defmodule Tidal.Protocol.V20260728 do
-  @moduledoc """
-  Stateless MCP `2026-07-28` request dispatcher.
-
-  Each call receives an immutable `Tidal.Server` through a fresh
-  `Tidal.RequestContext`. It never reads or mutates `Tidal.Session`.
-  """
+  @moduledoc false
 
   alias Tidal.JSONRPC.{Error, Request, Response}
   alias Tidal.Protocol.{BlobResourceContents, Resource, ResourceTemplate, TextResourceContents}

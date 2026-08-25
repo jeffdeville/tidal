@@ -5,6 +5,17 @@ defmodule Tidal.RequestContext do
   The context is reconstructed from the current request and is never used as an
   implicit cross-request session. Application state that survives a request must
   be addressed explicitly by a tool argument or extension handle.
+
+  Tool and resource handlers normally consume these fields:
+
+    * `auth_context` — copied from `conn.assigns.tidal_auth_context`.
+    * `assigns` — application values returned by the configured context builder.
+    * `client_capabilities` and `client_info` — validated request metadata.
+    * `input_responses` and `request_state` — multi-round-trip retry values.
+    * `transport` — current host, method, path, peer, and scheme.
+
+  The remaining fields support protocol validation and observability. Treat the
+  struct as immutable and request-scoped.
   """
 
   alias Tidal.Server
@@ -25,6 +36,7 @@ defmodule Tidal.RequestContext do
     transport: %{}
   ]
 
+  @typedoc "Validated application and transport context for one MCP request."
   @type t :: %__MODULE__{
           server: Server.t(),
           protocol_version: String.t(),
@@ -40,7 +52,16 @@ defmodule Tidal.RequestContext do
           transport: map()
         }
 
-  @doc "Builds context from the current request metadata and Plug connection."
+  @doc """
+  Builds context from validated request metadata and the current connection.
+
+  Applications usually configure `Tidal.Plug` with `:context_builder` instead
+  of calling this function. The builder receives the same connection and
+  metadata map and may return a map, `{:ok, map}`, or `{:error, reason}`.
+  Exceptions become `{:error, {:context_builder_failed, exception}}`; other
+  invalid return values become `{:error, {:invalid_context_builder_result,
+  value}}`.
+  """
   @spec new(Server.t(), Plug.Conn.t(), map()) :: {:ok, t()} | {:error, term()}
   def new(%Server{} = server, %Plug.Conn{} = conn, metadata) when is_map(metadata) do
     with {:ok, assigns} <- build_assigns(server, conn, metadata) do

@@ -5,6 +5,16 @@ defmodule Tidal.Server do
   A server is built once by `Tidal.Plug.init/1` and shared by independent
   requests. It contains no client lifecycle state. The modern protocol path
   combines it with a fresh `Tidal.RequestContext` for every request.
+
+  Most applications configure a server through `Tidal.Plug`. Constructing one
+  directly is useful for adapters and tests:
+
+      server =
+        Tidal.Server.new!(
+          tool_modules: [MyApp.Tools],
+          resource_handlers: [MyApp.Resources],
+          server_info: %{name: "my-app", version: "1.0.0"}
+        )
   """
 
   alias Tidal.Protocol.{Resource, ResourceTemplate, Tool}
@@ -46,6 +56,7 @@ defmodule Tidal.Server do
     init_assigns: %{}
   ]
 
+  @typedoc "Immutable catalog and runtime adapters for one MCP endpoint."
   @type t :: %__MODULE__{
           supported_versions: [String.t()],
           server_info: map(),
@@ -74,7 +85,35 @@ defmodule Tidal.Server do
   @spec legacy_protocol_version() :: String.t()
   def legacy_protocol_version, do: @legacy_version
 
-  @doc "Builds a server, raising when its configuration or catalog is invalid."
+  @doc """
+  Builds a server, raising when its configuration or catalog is invalid.
+
+  ## Options
+
+    * `:tool_modules` — modules implementing `Tidal.Tool`.
+    * `:resource_handlers` — modules implementing `Tidal.Resource`.
+    * `:server_info` — server `name` and `version`; atom keys are normalized to
+      strings.
+    * `:instructions` — optional agent-facing instructions.
+    * `:capabilities` — values merged over capabilities derived from the tool
+      and resource catalogs.
+    * `:middleware` — `Tidal.Tool.Middleware` modules, in execution order.
+    * `:cache` — `:ttl_ms` and `:scope` (`:private` or `:public`).
+    * `:context_builder` — arity-two function used by `Tidal.RequestContext`.
+    * `:init_assigns` — constant assigns used when there is no context builder.
+    * `:allowed_origins` — exact HTTP(S) origins; an empty list denies every
+      browser request that sends `Origin`.
+    * `:request_state_secret` — binary of at least 32 bytes for signing
+      multi-round-trip continuations.
+    * `:state_resolver` — `Tidal.StateHandle.Resolver` module or
+      `{module, options}` tuple; set to `nil` to disable handles.
+    * `:subscription_bus` — `Tidal.SubscriptionBus` module or
+      `{module, options}` tuple; set to `nil` to disable subscriptions.
+
+  Tool names and mirrored `x-mcp-header` names must be unique. Invalid modules,
+  definitions, cache settings, origins, or secrets raise `ArgumentError` during
+  initialization rather than on the first request.
+  """
   @spec new!(keyword()) :: t()
   def new!(opts \\ []) when is_list(opts) do
     tool_modules = Keyword.get(opts, :tool_modules, [])
