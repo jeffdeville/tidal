@@ -26,7 +26,7 @@ defmodule Tidal.Resource do
         end
 
         @impl true
-        def handle_read_resource("config://app", _session) do
+        def handle_read_resource("config://app", _context) do
           {:ok, [
             %TextResourceContents{
               uri: "config://app",
@@ -36,7 +36,7 @@ defmodule Tidal.Resource do
           ]}
         end
 
-        def handle_read_resource("config://app/" <> key, _session) do
+        def handle_read_resource("config://app/" <> key, _context) do
           case Application.fetch_env(:my_app, String.to_existing_atom(key)) do
             {:ok, value} ->
               {:ok, [%TextResourceContents{uri: "config://app/\#{key}", text: inspect(value)}]}
@@ -46,7 +46,7 @@ defmodule Tidal.Resource do
         end
 
         @impl true
-        def handle_subscribe(_uri, _session), do: :ok
+        def handle_subscribe(_uri, _context), do: :ok
       end
 
   ## Callbacks
@@ -55,12 +55,14 @@ defmodule Tidal.Resource do
       `Tidal.Protocol.ResourceTemplate` structs that the server exposes.
 
     * `handle_read_resource/2` — called when a client reads a resource by URI.
-      Receives the URI string and the session state map.
+      Receives the URI string and a modern `Tidal.RequestContext` or legacy
+      session state map.
       Must return `{:ok, [content]}` where content is `TextResourceContents`
       or `BlobResourceContents`, or `{:error, reason}`.
 
     * `handle_subscribe/2` — called when a client subscribes to resource changes.
-      Receives the URI string and the session state map.
+      Receives the URI string and a modern request context or legacy session
+      state map.
       Return `:ok` to accept, `{:error, reason}` to reject.
 
   """
@@ -81,7 +83,7 @@ defmodule Tidal.Resource do
   Returns `{:ok, contents}` with a list of `TextResourceContents` or
   `BlobResourceContents`, or `{:error, reason}`.
   """
-  @callback handle_read_resource(uri :: String.t(), session :: map()) ::
+  @callback handle_read_resource(uri :: String.t(), context :: map()) ::
               {:ok, [resource_content()]} | {:error, term()}
 
   @doc """
@@ -89,13 +91,13 @@ defmodule Tidal.Resource do
 
   Return `:ok` to accept or `{:error, reason}` to reject.
   """
-  @callback handle_subscribe(uri :: String.t(), session :: map()) :: :ok | {:error, term()}
+  @callback handle_subscribe(uri :: String.t(), context :: map()) :: :ok | {:error, term()}
 
   @optional_callbacks [handle_subscribe: 2]
 
   @doc """
-  Sends a `notifications/resources/updated` notification to all sessions
-  subscribed to the given resource URI.
+  Publishes `notifications/resources/updated` to legacy sessions and modern
+  subscription streams using the default local bus.
 
   Call this from your application code when a resource changes.
   """
@@ -113,6 +115,8 @@ defmodule Tidal.Resource do
     for pid <- pids do
       send(pid, {:resource_updated, uri, notification})
     end
+
+    Tidal.Subscriptions.resource_updated(uri)
 
     :ok
   end

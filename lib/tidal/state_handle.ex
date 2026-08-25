@@ -1,0 +1,62 @@
+defmodule Tidal.StateHandle do
+  @moduledoc """
+  Operations on explicit, server-minted application-state handles.
+
+  MCP `2026-07-28` removes implicit protocol sessions, not application state.
+  Tools may return an opaque handle and accept it on later calls. This module
+  resolves that handle through the server's configured resolver and supplies the
+  current request's authorization context on every operation.
+
+  `Tidal.StateHandle.Local` is the single-node default. Configure a resolver
+  implementing `Tidal.StateHandle.Resolver` when handles must survive node loss
+  or resolve across independently deployed BEAM clusters.
+  """
+
+  alias Tidal.RequestContext
+
+  @type handle :: String.t()
+
+  @doc "Creates an opaque handle bound to the current authorization context."
+  @spec create(RequestContext.t(), term(), keyword()) :: {:ok, handle()} | {:error, term()}
+  def create(%RequestContext{} = context, initial_state, opts \\ []) do
+    with {:ok, {resolver, resolver_opts}} <- resolver(context) do
+      resolver.create(initial_state, context.auth_context, Keyword.merge(resolver_opts, opts))
+    end
+  end
+
+  @doc "Fetches the current state after authorizing this request."
+  @spec fetch(RequestContext.t(), handle()) :: {:ok, term()} | {:error, term()}
+  def fetch(%RequestContext{} = context, handle) when is_binary(handle) do
+    with {:ok, {resolver, opts}} <- resolver(context) do
+      resolver.fetch(handle, context.auth_context, opts)
+    end
+  end
+
+  @doc "Atomically transforms handle state and returns the transaction result."
+  @spec transact(RequestContext.t(), handle(), (term() -> {:ok, term(), term()} | {:error, term()})) ::
+          {:ok, term()} | {:error, term()}
+  def transact(%RequestContext{} = context, handle, function)
+      when is_binary(handle) and is_function(function, 1) do
+    with {:ok, {resolver, opts}} <- resolver(context) do
+      resolver.transact(handle, context.auth_context, function, opts)
+    end
+  end
+
+  @doc "Destroys a handle after authorizing this request."
+  @spec destroy(RequestContext.t(), handle()) :: :ok | {:error, term()}
+  def destroy(%RequestContext{} = context, handle) when is_binary(handle) do
+    with {:ok, {resolver, opts}} <- resolver(context) do
+      resolver.destroy(handle, context.auth_context, opts)
+    end
+  end
+
+  defp resolver(%RequestContext{server: %{state_resolver: {module, opts}}})
+       when is_atom(module) and is_list(opts),
+       do: {:ok, {module, opts}}
+
+  defp resolver(%RequestContext{server: %{state_resolver: nil}}),
+    do: {:error, :state_handles_disabled}
+
+  defp resolver(%RequestContext{server: %{state_resolver: module}}) when is_atom(module),
+    do: {:ok, {module, []}}
+end

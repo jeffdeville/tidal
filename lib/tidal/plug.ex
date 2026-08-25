@@ -1,13 +1,14 @@
 defmodule Tidal.Plug do
   @moduledoc """
-  A Plug router implementing the MCP Streamable HTTP transport.
+  A versioned Plug router implementing the MCP Streamable HTTP transport.
 
-  Handles three HTTP methods on the MCP endpoint:
+  MCP `2026-07-28` uses one independent POST per message. A request returns one
+  JSON response or a request-scoped SSE stream; `subscriptions/listen` is the
+  long-lived notification stream. Modern GET and DELETE requests return 405,
+  and legacy session/replay headers are ignored.
 
-    * `POST` — receives JSON-RPC messages, routes to the appropriate session,
-      returns `application/json` responses
-    * `GET` — opens a Server-Sent Events (SSE) stream for server-initiated messages
-    * `DELETE` — terminates the session identified by the `Mcp-Session-Id` header
+  The `2025-11-25` compatibility path retains initialize, `Mcp-Session-Id`, GET
+  streams, and DELETE while callers migrate.
 
   ## Usage
 
@@ -19,19 +20,29 @@ defmodule Tidal.Plug do
       # Or start directly with Bandit
       Bandit.start_link(plug: Tidal.Plug, port: 4000)
 
-  ## Headers
+  ## Modern options
 
-    * `Mcp-Session-Id` — required for established sessions (POST with existing session,
-      GET, DELETE). Generated automatically for new sessions on the first POST (initialize).
-    * `Accept` — must include `application/json` for POST requests and
-      `text/event-stream` for GET requests. `*/*` is accepted for either.
-    * `Content-Type` — must be `application/json` for POST requests.
+    * `:server_info` — server `name` and `version` metadata.
+    * `:context_builder` — arity-two callback rebuilding request assigns from
+      the current connection and metadata.
+    * `:allowed_origins` — explicit HTTP(S) browser origins. The default empty
+      list rejects every request that carries `Origin`.
+    * `:cache` — `ttl_ms` and `scope` (`:private` or `:public`).
+    * `:request_state_secret` — at least 32 bytes, required to sign MRTR state.
+    * `:state_resolver` — explicit application-handle resolver; defaults to the
+      node-local `Tidal.StateHandle.Local`.
+    * `:subscription_bus` — subscription event bus; defaults to the node-local
+      `Tidal.Subscriptions.Local`.
   """
 
   use Plug.Router
 
   alias Tidal.JSONRPC
+  alias Tidal.Server
   alias Tidal.Session
+  alias Tidal.Transport.OriginValidator
+  alias Tidal.Transport.V20260728
+  alias Tidal.Transport.VersionRouter
 
   require Logger
   require Tidal.JSONRPC.ErrorCodes, as: ErrorCodes
@@ -42,28 +53,34 @@ defmodule Tidal.Plug do
   plug(:dispatch)
 
   @doc """
-  Initializes the plug with session options.
-
-  Options are passed through to `Tidal.Session.start/1` when creating new sessions.
-  Accepts all options supported by `Tidal.Session.Options`.
+  Builds immutable modern server configuration and preserves the same options
+  for legacy session creation.
   """
   @impl true
-  def init(opts), do: opts
+  def init(opts) do
+    %{legacy_opts: opts, server: Server.new!(opts)}
+  end
 
   @impl true
   def call(conn, opts) do
-    conn = Plug.Conn.put_private(conn, :tidal_session_opts, opts)
-    super(conn, opts)
+    conn =
+      conn
+      |> Plug.Conn.put_private(:tidal_session_opts, opts.legacy_opts)
+      |> Plug.Conn.put_private(:tidal_server, opts.server)
+
+    case OriginValidator.validate(conn, opts.server) do
+      :ok -> super(conn, opts)
+      {:error, status, body} -> send_json_response(conn, status, body)
+    end
   end
 
   # ── POST — Client sends JSON-RPC messages ────────────────────────────
 
   post "/" do
-    with :ok <- validate_accept(conn),
-         :ok <- validate_content_type(conn),
+    with :ok <- validate_content_type(conn),
          {:ok, body} <- read_body_string(conn),
          {:ok, message} <- decode_message(body) do
-      handle_post(conn, message)
+      handle_versioned_post(conn, message)
     else
       {:error, status, body} ->
         send_json_response(conn, status, body)
@@ -73,28 +90,36 @@ defmodule Tidal.Plug do
   # ── GET — SSE stream for server-initiated messages ───────────────────
 
   get "/" do
-    with :ok <- validate_accept(conn),
-         {:ok, session_id} <- require_session_header(conn),
-         {:ok_or_reconnected, resolved_session_id} <- resolve_session(session_id) do
-      serve_sse(conn, resolved_session_id)
+    if VersionRouter.modern_http_request?(conn) do
+      send_resp(conn, 405, "Method Not Allowed")
     else
-      {:error, status, body} ->
-        send_json_response(conn, status, body)
+      with :ok <- validate_accept(conn),
+           {:ok, session_id} <- require_session_header(conn),
+           {:ok_or_reconnected, resolved_session_id} <- resolve_session(session_id) do
+        serve_sse(conn, resolved_session_id)
+      else
+        {:error, status, body} ->
+          send_json_response(conn, status, body)
+      end
     end
   end
 
   # ── DELETE — Terminate session ───────────────────────────────────────
 
   delete "/" do
-    with {:ok, session_id} <- require_session_header(conn),
-         :ok <- Session.terminate(session_id) do
-      send_resp(conn, 204, "")
+    if VersionRouter.modern_http_request?(conn) do
+      send_resp(conn, 405, "Method Not Allowed")
     else
-      {:error, :not_found} ->
-        send_json_response(conn, 404, %{"error" => "session not found"})
+      with {:ok, session_id} <- require_session_header(conn),
+           :ok <- Session.terminate(session_id) do
+        send_resp(conn, 204, "")
+      else
+        {:error, :not_found} ->
+          send_json_response(conn, 404, %{"error" => "session not found"})
 
-      {:error, status, body} ->
-        send_json_response(conn, status, body)
+        {:error, status, body} ->
+          send_json_response(conn, status, body)
+      end
     end
   end
 
@@ -104,6 +129,19 @@ defmodule Tidal.Plug do
   end
 
   # ── POST handling ────────────────────────────────────────────────────
+
+  defp handle_versioned_post(conn, message) do
+    case VersionRouter.route(conn, message) do
+      :modern ->
+        V20260728.handle_post(conn, message, conn.private.tidal_server)
+
+      :legacy ->
+        case validate_accept(conn) do
+          :ok -> handle_post(conn, message)
+          {:error, status, body} -> send_json_response(conn, status, body)
+        end
+    end
+  end
 
   defp handle_post(conn, %JSONRPC.Request{method: "initialize"} = request) do
     case get_session_id(conn) do

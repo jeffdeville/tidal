@@ -45,6 +45,7 @@ defmodule Tidal.MixProject do
       {:bandit, "~> 1.6"},
       {:jason, "~> 1.4"},
       {:nimble_options, "~> 1.1"},
+      {:arena, git: "https://github.com/jeffdeville/arena.git", ref: "37cbe7d565e6fcb0ab2717739d7d7826e0cbffaf"},
 
       # Dev/Test
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},

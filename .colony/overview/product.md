@@ -2,79 +2,77 @@
 type: product-overview
 project: tidal
 status: active
-last_updated: 2026-03-09
+last_updated: 2026-08-25
 ---
 
 # Tidal — Elixir MCP Server Library
 
 ## Vision
 
-Tidal is an Elixir Hex package for building MCP (Model Context Protocol) servers.
-It implements the full MCP 2025-11-25 specification with a focus on the Streamable HTTP
-transport, giving each connecting client its own supervised server session — inspired by
-Phoenix LiveView's per-connection process model.
+Tidal is an Elixir library for building Model Context Protocol servers over
+Streamable HTTP. Its primary target is MCP `2026-07-28`: independently routable
+requests with explicit application state, rather than implicit per-client
+protocol sessions.
 
 ## Problem
 
-Existing Elixir MCP libraries (e.g., Hermes MCP) funnel all client connections through
-a single GenServer process. This creates a bottleneck, prevents per-client state isolation,
-and doesn't leverage the BEAM's natural concurrency model. The MCP spec explicitly
-supports stateful per-client sessions via `Mcp-Session-Id`, but current libraries don't
-take advantage of this.
+The handshake-era design mapped each client to one GenServer. That was a good
+fit for older `Mcp-Session-Id` semantics, but it serializes unrelated work,
+depends on affinity or local reconnect behavior, and can confuse a process
+failure with an expired session. In the old HTTP path that confusion could
+replay a side-effecting tool call.
 
-## Solution
+MCP `2026-07-28` removes initialization and protocol sessions. Every request
+carries the version and capabilities needed to process it, enabling normal
+round-robin load balancing. Stateful application workflows still need explicit
+identity, authorization, concurrency control, and sometimes durability.
 
-Tidal provides a per-session GenServer architecture where:
+## Product approach
 
-- Each connecting MCP client gets its own supervised process
-- Session state is isolated, just like a LiveView socket
-- The BEAM's supervision tree ensures fault tolerance per session
-- The Streamable HTTP transport is first-class, built on Plug/Bandit
+Tidal separates those concerns:
 
-## Target Users
+- stateless protocol requests execute concurrently in independent BEAM
+  processes;
+- typed request context is rebuilt and authorized on every call;
+- an explicit opaque handle can resolve to a supervised state actor;
+- MRTR state travels in a protected, expiring continuation;
+- one `subscriptions/listen` response owns one long-lived notification stream;
+- replaceable resolver and event-bus boundaries let a deployment add
+  cross-node routing or durable storage without changing MCP-visible handles.
 
-- **Primary (initial)**: The Colony project — an existing Phoenix application that needs
-  MCP server capabilities
-- **Secondary (future)**: Any Elixir developer wanting to expose MCP tools, resources,
-  or prompts from their application
+This makes Elixir valuable at the correct granularity: a process per active
+request, stream, task worker, or explicitly addressed state object—not a hidden
+process per client conversation.
 
-## Spec Coverage
+## Current modern coverage
 
-Full implementation of the MCP 2025-11-25 specification:
+- `server/discover` and per-request version/capability metadata
+- tools listing and invocation
+- resources listing, templates, reads, and update subscriptions
+- deterministic catalogs and cache metadata
+- HTTP header/body validation, custom parameter headers, and Origin validation
+- complete and input-required result types
+- protected MRTR request state
+- local Arena-aware application state actors behind a replaceable resolver
+- request-scoped SSE subscriptions behind a replaceable event bus
+- isolated legacy `2025-11-25` compatibility path
 
-### Core Protocol
-- JSON-RPC 2.0 message encoding (UTF-8)
-- Request/response, notifications, batching
-- Lifecycle: initialize, initialized, ping, shutdown
+Prompts, completions, and the optional Tasks extension are outside the current
+modern implementation. Tasks specifically require a durable store and
+cross-node recovery semantics before Tidal should advertise support.
 
-### Transport
-- Streamable HTTP (POST for client→server, GET for server→client SSE)
-- Session management via `Mcp-Session-Id`
-- Resumability and redelivery (SSE event IDs, `Last-Event-ID`)
-- Multiple simultaneous SSE connections per session
-- Backwards compatibility with legacy HTTP+SSE transport (2024-11-05)
-- Origin header validation, localhost binding, authentication
+## Target users
 
-### Server Features
-- Tools (definition, listing, invocation, annotations)
-- Resources (definition, listing, reading, subscriptions, templates)
-- Prompts (definition, listing, retrieval, argument completion)
-- Logging (level control, log message notifications)
-- Sampling (server-initiated LLM requests to the client)
-- Roots (client workspace roots)
-- Elicitation (requesting user input via the client)
-- Completion (argument auto-complete for resources and prompts)
-- Tasks (async request tracking, polling, deferred results)
-- Pagination (cursor-based, for list operations)
-- Cancellation (`CancelledNotification`)
-- Progress tracking (`ProgressNotification`)
-- Extension framework (optional capability discovery)
+- Colony and other Phoenix applications exposing MCP capabilities.
+- Elixir teams that need high concurrency, supervised work, and explicit
+  stateful workflows behind ordinary load balancers.
 
-## Non-Goals (for now)
+## Non-goals
 
-- stdio transport (Streamable HTTP only for initial release)
-- MCP client implementation (server-only library)
-- Backward compatibility with Elixir versions < 1.19
+- Hiding node-local state behind an unreliable implicit routing key.
+- Claiming durability for an in-memory process.
+- A client implementation or stdio transport in the current release.
+- Backward compatibility with Elixir versions before 1.19.
 
 ## License
 

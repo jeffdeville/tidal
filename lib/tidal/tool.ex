@@ -31,14 +31,16 @@ defmodule Tidal.Tool do
         end
 
         @impl true
-        def handle_tool_call("echo", %{"message" => message}, _session) do
+        def handle_tool_call("echo", %{"message" => message}, _context) do
           {:ok, %ToolResult{content: [%TextContent{text: message}]}}
         end
       end
 
   """
 
-  alias Tidal.Protocol.{Tool, ToolResult}
+  alias Tidal.Protocol.{InputRequiredResult, Tool, ToolResult}
+
+  @type result :: ToolResult.t() | InputRequiredResult.t()
 
   @doc """
   Returns a list of tool definitions provided by this module.
@@ -50,11 +52,11 @@ defmodule Tidal.Tool do
   @doc """
   Handles a tool invocation.
 
-  Receives the tool name, a map of validated arguments, and the session state.
-  Returns `{:ok, %ToolResult{}}` or `{:error, reason}`.
+  Receives the tool name, validated arguments, and either a modern request
+  context or legacy session state. Returns a complete or input-required result.
   """
-  @callback handle_tool_call(name :: String.t(), arguments :: map(), session :: map()) ::
-              {:ok, ToolResult.t()} | {:error, String.t()}
+  @callback handle_tool_call(name :: String.t(), arguments :: map(), context :: map()) ::
+              {:ok, result()} | {:error, String.t()}
 
   @doc """
   Executes a tool operation (used by `defop`-based modules).
